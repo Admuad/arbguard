@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  contracts:
+    name: Foundry — build + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.9.0
+      - name: Check formatting
+        working-directory: contracts
+        run: forge fmt --check
+      - name: Build contracts
+        working-directory: contracts
+        run: forge build
+      - name: Test contracts
+        working-directory: contracts
+        run: forge test
+
+  stylus:
+    name: Stylus — test + build WASM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Pinned to rust-toolchain.toml (1.91.0) — do not use `stable` here:
+      # the crate builds against 1.91.0 and the machine default differs.
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.91.0"
+          targets: wasm32-unknown-unknown
+      - name: Check formatting
+        working-directory: stylus
+        run: cargo fmt --check
+      - name: Test Stylus checker
+        working-directory: stylus
+        run: cargo test
+      - name: Build release WASM
+        working-directory: stylus
+        run: cargo build --release --target wasm32-unknown-unknown
+      # NOTE: `cargo stylus check` is deliberately NOT in CI. It needs a
+      # live Arbitrum RPC, and new Stylus activations are paused chain-wide
+      # since 2 Oct 2026, so it fails for reasons unrelated to this code.
+      # Re-check manually before any deploy attempt:
+      #   cargo stylus check --endpoint https://sepolia-rollup.arbitrum.io/rpc
+      # (see stylus/README.md — a passing check is the signal the pause lifted).
+      # The on-chain activation dry-run needs cargo-stylus 0.10.10:
+      #   cargo install cargo-stylus --version 0.10.10 --locked
+
+  frontend:
+    name: Frontend — npm run build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install dependencies
+        working-directory: apps/web
+        run: npm ci
+      - name: Build frontend
+        working-directory: apps/web
+        run: npm run build
