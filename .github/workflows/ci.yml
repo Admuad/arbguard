@@ -40,6 +40,9 @@ jobs:
         with:
           toolchain: "1.91.0"
           targets: wasm32-unknown-unknown
+          # rustfmt is NOT installed by default; without it
+          # `cargo fmt --check` fails with "cargo-fmt is not installed".
+          components: rustfmt
       - name: Check formatting
         working-directory: stylus
         run: cargo fmt --check
