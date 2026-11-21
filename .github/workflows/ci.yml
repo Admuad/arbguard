@@ -24,6 +24,9 @@ jobs:
       - name: Build contracts
         working-directory: contracts
         run: forge build
+      # The archive RPC secret (ARBITRUM_ONE_RPC_URL) is needed for the
+      # AaveFork/UniswapV3Fork suites: the public RPC lacks the pinned
+      # historical state at block 525970897.
       - name: Test contracts
         working-directory: contracts
         env:
