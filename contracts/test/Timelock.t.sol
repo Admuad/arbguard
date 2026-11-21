@@ -29,9 +29,7 @@ contract TimelockTest is Fixture {
         assertEq(guard.getPolicy(vaultPolicyId).maxOutflowPerBlock, 100 ether);
         assertEq(guard.getPriceConfig(vaultPolicyId).twapSeconds, 1800);
         // Early execute reverts.
-        vm.expectRevert(
-            abi.encodeWithSelector(ArbGuard.TimelockNotElapsed.selector, block.timestamp + DELAY)
-        );
+        vm.expectRevert(abi.encodeWithSelector(ArbGuard.TimelockNotElapsed.selector, block.timestamp + DELAY));
         guard.executePolicyUpdate(vaultPolicyId);
         // After the delay it applies (both policy and price config).
         vm.warp(block.timestamp + DELAY);
@@ -109,9 +107,7 @@ contract TimelockTest is Fixture {
         guard.proposePolicyUpdate(vaultPolicyId, shorter, priceConfig());
         // Executing after only the NEW delay (3600) still reverts.
         vm.warp(block.timestamp + 3600);
-        vm.expectRevert(
-            abi.encodeWithSelector(ArbGuard.TimelockNotElapsed.selector, block.timestamp - 3600 + DELAY)
-        );
+        vm.expectRevert(abi.encodeWithSelector(ArbGuard.TimelockNotElapsed.selector, block.timestamp - 3600 + DELAY));
         guard.executePolicyUpdate(vaultPolicyId);
         // After the CURRENT delay it executes, and the delay is now 3600.
         vm.warp(block.timestamp + (DELAY - 3600));
@@ -166,9 +162,7 @@ contract TimelockTest is Fixture {
         assertEq(pending.executableAt, block.timestamp + DELAY);
         assertTrue(pending.policy.enabled);
         // Early execute reverts.
-        vm.expectRevert(
-            abi.encodeWithSelector(ArbGuard.TimelockNotElapsed.selector, block.timestamp + DELAY)
-        );
+        vm.expectRevert(abi.encodeWithSelector(ArbGuard.TimelockNotElapsed.selector, block.timestamp + DELAY));
         guard.executePolicyUpdate(vaultPolicyId);
         // After the delay it re-enables.
         vm.warp(block.timestamp + DELAY);
@@ -223,10 +217,7 @@ contract TimelockTest is Fixture {
             pid,
             address(asset),
             OracleConfig({
-                chainlinkFeed: address(feed),
-                uniswapPool: address(mockPool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(feed), uniswapPool: address(mockPool), feedDecimals: 8, tokenDecimals: 18
             })
         );
         OracleConfig memory stored = guard.getOracleConfig(pid, address(asset));
@@ -247,10 +238,7 @@ contract TimelockTest is Fixture {
             poolPolicyId,
             address(asset),
             OracleConfig({
-                chainlinkFeed: address(newFeed),
-                uniswapPool: address(mockPool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(newFeed), uniswapPool: address(mockPool), feedDecimals: 8, tokenDecimals: 18
             })
         );
         // Still the old feed.
@@ -261,9 +249,7 @@ contract TimelockTest is Fixture {
         assertEq(pending.executableAt, block.timestamp + DELAY);
         assertEq(pending.config.chainlinkFeed, address(newFeed));
         // Early execute reverts.
-        vm.expectRevert(
-            abi.encodeWithSelector(ArbGuard.TimelockNotElapsed.selector, block.timestamp + DELAY)
-        );
+        vm.expectRevert(abi.encodeWithSelector(ArbGuard.TimelockNotElapsed.selector, block.timestamp + DELAY));
         guard.executeOracleConfigUpdate(poolPolicyId, address(asset));
         // After the delay the new feed applies, and the reference price
         // moves to $1.50 (newFeed $1.50 vs usdcFeed $1.00).
@@ -285,10 +271,7 @@ contract TimelockTest is Fixture {
             poolPolicyId,
             address(asset),
             OracleConfig({
-                chainlinkFeed: address(newFeed),
-                uniswapPool: address(mockPool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(newFeed), uniswapPool: address(mockPool), feedDecimals: 8, tokenDecimals: 18
             })
         );
         vm.expectRevert(
@@ -298,10 +281,7 @@ contract TimelockTest is Fixture {
             poolPolicyId,
             address(asset),
             OracleConfig({
-                chainlinkFeed: address(newFeed),
-                uniswapPool: address(mockPool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(newFeed), uniswapPool: address(mockPool), feedDecimals: 8, tokenDecimals: 18
             })
         );
     }
@@ -312,10 +292,7 @@ contract TimelockTest is Fixture {
             poolPolicyId,
             address(asset),
             OracleConfig({
-                chainlinkFeed: address(newFeed),
-                uniswapPool: address(mockPool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(newFeed), uniswapPool: address(mockPool), feedDecimals: 8, tokenDecimals: 18
             })
         );
         guard.cancelOracleConfigUpdate(poolPolicyId, address(asset));
@@ -325,9 +302,7 @@ contract TimelockTest is Fixture {
         OracleConfig memory stored = guard.getOracleConfig(poolPolicyId, address(asset));
         assertEq(stored.chainlinkFeed, address(wethFeed));
         // Executing after cancel reverts.
-        vm.expectRevert(
-            abi.encodeWithSelector(ArbGuard.NoPendingOracleUpdate.selector, poolPolicyId, address(asset))
-        );
+        vm.expectRevert(abi.encodeWithSelector(ArbGuard.NoPendingOracleUpdate.selector, poolPolicyId, address(asset)));
         guard.executeOracleConfigUpdate(poolPolicyId, address(asset));
     }
 
@@ -362,10 +337,7 @@ contract TimelockTest is Fixture {
             poolPolicyId,
             address(asset),
             OracleConfig({
-                chainlinkFeed: address(newFeed),
-                uniswapPool: address(mockPool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(newFeed), uniswapPool: address(mockPool), feedDecimals: 8, tokenDecimals: 18
             })
         );
         uint256 proposedAt = block.timestamp;

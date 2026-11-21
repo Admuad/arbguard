@@ -81,9 +81,13 @@ contract HealthFactorTest is Fixture {
     }
 
     /// @notice Lock-step assertion: simulateCheck and check() agree.
-    function _runCase(string memory name, address protocol, Action memory action, bool expectedOk, Reason expectedReason)
-        internal
-    {
+    function _runCase(
+        string memory name,
+        address protocol,
+        Action memory action,
+        bool expectedOk,
+        Reason expectedReason
+    ) internal {
         (bool ok, Reason reason) = guard.simulateCheck(protocol, action);
         assertEq(ok, expectedOk, string.concat(name, ": simulateCheck ok"));
         assertEq(uint8(reason), uint8(expectedReason), string.concat(name, ": simulateCheck reason"));

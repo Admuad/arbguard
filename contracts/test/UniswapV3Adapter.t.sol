@@ -2,7 +2,13 @@
 pragma solidity 0.8.28;
 
 import {ArbGuard, Policy, OracleConfig} from "../src/ArbGuard.sol";
-import {UniswapV3Adapter, AdapterError, AdapterNotConfigured, INonfungiblePositionManager, IUniswapV3Factory} from "../src/UniswapV3Adapter.sol";
+import {
+    UniswapV3Adapter,
+    AdapterError,
+    AdapterNotConfigured,
+    INonfungiblePositionManager,
+    IUniswapV3Factory
+} from "../src/UniswapV3Adapter.sol";
 import {IAaveOracle} from "../src/AaveAdapter.sol";
 import {TickMath, SqrtPriceMath} from "../src/libraries/UniswapMath.sol";
 import {AdapterPolicyHelper} from "../script/DeployAdapters.s.sol";
@@ -60,20 +66,14 @@ contract UniswapV3AdapterTest is Fixture {
             v3PolicyId,
             address(asset),
             OracleConfig({
-                chainlinkFeed: address(wethFeed),
-                uniswapPool: address(mockV3Pool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(wethFeed), uniswapPool: address(mockV3Pool), feedDecimals: 8, tokenDecimals: 18
             })
         );
         guard.setOracleConfig(
             v3PolicyId,
             address(token1),
             OracleConfig({
-                chainlinkFeed: address(usdcFeed),
-                uniswapPool: address(mockV3Pool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(usdcFeed), uniswapPool: address(mockV3Pool), feedDecimals: 8, tokenDecimals: 18
             })
         );
 

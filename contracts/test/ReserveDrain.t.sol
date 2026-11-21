@@ -65,9 +65,13 @@ contract ReserveDrainTest is Fixture {
         });
     }
 
-    function _runCase(string memory name, address protocol, Action memory action, bool expectedOk, Reason expectedReason)
-        internal
-    {
+    function _runCase(
+        string memory name,
+        address protocol,
+        Action memory action,
+        bool expectedOk,
+        Reason expectedReason
+    ) internal {
         (bool ok, Reason reason) = guard.simulateCheck(protocol, action);
         assertEq(ok, expectedOk, string.concat(name, ": simulateCheck ok"));
         assertEq(uint8(reason), uint8(expectedReason), string.concat(name, ": simulateCheck reason"));
@@ -106,7 +110,9 @@ contract ReserveDrainTest is Fixture {
 
     function test_Drain_AppliesToWithdraw() public {
         (, address p) = _policyWithDrain(5000);
-        _runCase("drain-withdraw", p, _action(ActionKind.WITHDRAW, 6000 ether, 10000 ether), false, Reason.RESERVE_DRAIN);
+        _runCase(
+            "drain-withdraw", p, _action(ActionKind.WITHDRAW, 6000 ether, 10000 ether), false, Reason.RESERVE_DRAIN
+        );
     }
 
     function test_Drain_AppliesToSwap() public {

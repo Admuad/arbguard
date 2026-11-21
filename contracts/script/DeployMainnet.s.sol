@@ -93,10 +93,7 @@ contract DeployMainnet is Script {
             maxReserveDrainBps: 0
         });
         PriceConfig memory priceConfig = PriceConfig({
-            twapSeconds: 1800,
-            maxOracleDeviationBps: 200,
-            chainlinkStaleAfter: 7200,
-            sequencerFeed: SEQUENCER_FEED
+            twapSeconds: 1800, maxOracleDeviationBps: 200, chainlinkStaleAfter: 7200, sequencerFeed: SEQUENCER_FEED
         });
         uint256 vaultPolicyId = guard.registerPolicy(address(guardedVault), vaultPolicy, priceConfig);
         uint256 poolPolicyId = guard.registerPolicy(address(guardedPool), poolPolicy, priceConfig);

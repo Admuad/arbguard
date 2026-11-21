@@ -74,10 +74,7 @@ contract DeployFork is Script {
             maxReserveDrainBps: 0
         });
         PriceConfig memory priceConfig = PriceConfig({
-            twapSeconds: 1800,
-            maxOracleDeviationBps: 200,
-            chainlinkStaleAfter: 7200,
-            sequencerFeed: address(0)
+            twapSeconds: 1800, maxOracleDeviationBps: 200, chainlinkStaleAfter: 7200, sequencerFeed: address(0)
         });
         guard.registerPolicy(address(guardedVault), vaultPolicy, priceConfig);
         guard.registerPolicy(address(guardedPool), poolPolicy, priceConfig);

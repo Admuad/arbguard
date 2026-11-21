@@ -99,9 +99,8 @@ contract AttackBlockedTest is Fixture {
         // The simulator sees the price-push coming before any tx is sent.
         // The fixture's mock oracles give a 1.0 reference, so a swap at
         // 0.5 is a 50% deviation, far over the 5% cap.
-        (bool ok, Reason reason) = guard.simulateCheck(
-            address(guardedPool), _swapAction(1000 ether, 500 ether, 0.5 ether, 1000 ether)
-        );
+        (bool ok, Reason reason) =
+            guard.simulateCheck(address(guardedPool), _swapAction(1000 ether, 500 ether, 0.5 ether, 1000 ether));
         assertFalse(ok);
         assertEq(uint8(reason), uint8(Reason.PRICE_DEVIATION));
     }

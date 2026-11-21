@@ -59,20 +59,14 @@ contract MirrorTest is Fixture {
             pid,
             address(asset),
             OracleConfig({
-                chainlinkFeed: address(feedIn),
-                uniswapPool: address(pool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(feedIn), uniswapPool: address(pool), feedDecimals: 8, tokenDecimals: 18
             })
         );
         guard.setOracleConfig(
             pid,
             address(token1),
             OracleConfig({
-                chainlinkFeed: address(feedOut),
-                uniswapPool: address(pool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(feedOut), uniswapPool: address(pool), feedDecimals: 8, tokenDecimals: 18
             })
         );
     }
@@ -109,9 +103,13 @@ contract MirrorTest is Fixture {
     /// (expectedOk, expectedReason) AND check() either succeeds (when
     /// expectedOk) or reverts with ArbGuardViolation(expectedReason).
     /// `name` labels the case so a failure names the rule.
-    function _runCase(string memory name, address protocol, Action memory action, bool expectedOk, Reason expectedReason)
-        internal
-    {
+    function _runCase(
+        string memory name,
+        address protocol,
+        Action memory action,
+        bool expectedOk,
+        Reason expectedReason
+    ) internal {
         (bool ok, Reason reason) = guard.simulateCheck(protocol, action);
         assertEq(ok, expectedOk, string.concat(name, ": simulateCheck ok"));
         assertEq(uint8(reason), uint8(expectedReason), string.concat(name, ": simulateCheck reason"));
@@ -144,13 +142,17 @@ contract MirrorTest is Fixture {
 
         // --- 3. OUTFLOW_PER_HOUR: accumulate 2000 in the hour, then one more.
         (, address p3) = _freshPolicy(100 ether, 2000 ether, 10000 ether);
-        for (uint256 i = 0; i < 20; i++) _withdrawOnce(p3, 100 ether);
+        for (uint256 i = 0; i < 20; i++) {
+            _withdrawOnce(p3, 100 ether);
+        }
         vm.roll(block.number + 1); // fresh block so the block rule does not bind
         _runCase("outflow-per-hour", p3, _withdraw(100 ether, 10000 ether), false, Reason.OUTFLOW_PER_HOUR);
 
         // --- 4. OUTFLOW_PER_DAY: accumulate 500 in the day, then one more.
         (, address p4) = _freshPolicy(100 ether, 0, 500 ether);
-        for (uint256 i = 0; i < 5; i++) _withdrawOnce(p4, 100 ether);
+        for (uint256 i = 0; i < 5; i++) {
+            _withdrawOnce(p4, 100 ether);
+        }
         vm.roll(block.number + 1);
         _runCase("outflow-per-day", p4, _withdraw(100 ether, 10000 ether), false, Reason.OUTFLOW_PER_DAY);
 
@@ -204,20 +206,14 @@ contract MirrorTest is Fixture {
             pid9,
             address(asset),
             OracleConfig({
-                chainlinkFeed: address(feedIn),
-                uniswapPool: address(pool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(feedIn), uniswapPool: address(pool), feedDecimals: 8, tokenDecimals: 18
             })
         );
         guard.setOracleConfig(
             pid9,
             address(token1),
             OracleConfig({
-                chainlinkFeed: address(feedOut),
-                uniswapPool: address(pool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(feedOut), uniswapPool: address(pool), feedDecimals: 8, tokenDecimals: 18
             })
         );
         _runCase("sequencer-down-swap", p9, _swap(1 ether), false, Reason.SEQUENCER_DOWN);
@@ -279,12 +275,9 @@ contract MirrorTest is Fixture {
         // the same action returns the rule outcome. Documented here so the
         // asymmetry is explicit, not hidden.
         vm.prank(stranger);
-        vm.expectRevert(
-            abi.encodeWithSelector(ArbGuard.NotProtocol.selector, stranger, address(guardedVault))
-        );
+        vm.expectRevert(abi.encodeWithSelector(ArbGuard.NotProtocol.selector, stranger, address(guardedVault)));
         guard.check(address(guardedVault), _withdraw(10 ether, 1000 ether));
-        (bool ok, Reason reason) =
-            guard.simulateCheck(address(guardedVault), _withdraw(10 ether, 1000 ether));
+        (bool ok, Reason reason) = guard.simulateCheck(address(guardedVault), _withdraw(10 ether, 1000 ether));
         assertTrue(ok);
         assertEq(uint8(reason), uint8(Reason.NONE));
     }

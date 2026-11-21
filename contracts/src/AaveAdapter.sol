@@ -287,8 +287,7 @@ contract AaveAdapter {
         view
         returns (uint256 healthFactorAfter)
     {
-        (uint256 totalCollateralBase, uint256 totalDebtBase,, uint256 threshold,,) =
-            pool.getUserAccountData(user);
+        (uint256 totalCollateralBase, uint256 totalDebtBase,, uint256 threshold,,) = pool.getUserAccountData(user);
         uint256 amountBase = _usdValueBase(asset, amount);
         uint256 collateralAfter;
         uint256 debtAfter;

@@ -77,10 +77,7 @@ contract UniswapV3ForkTest is Fixture {
         super.setUp();
 
         v3 = new UniswapV3Adapter(
-            guard,
-            IUniswapV3Factory(FACTORY),
-            INonfungiblePositionManager(NPM),
-            IAaveOracle(AAVE_ORACLE)
+            guard, IUniswapV3Factory(FACTORY), INonfungiblePositionManager(NPM), IAaveOracle(AAVE_ORACLE)
         );
         // V3 policy: USD caps $50k/$500k/$2M, single-share 50%, drain
         // 50%, HF floor off (0). Real 0.05% pool in the OracleConfig,
@@ -94,22 +91,12 @@ contract UniswapV3ForkTest is Fixture {
         guard.setOracleConfig(
             v3PolicyId,
             WETH,
-            OracleConfig({
-                chainlinkFeed: ETH_USD_FEED,
-                uniswapPool: WETH_USDC_POOL,
-                feedDecimals: 8,
-                tokenDecimals: 18
-            })
+            OracleConfig({chainlinkFeed: ETH_USD_FEED, uniswapPool: WETH_USDC_POOL, feedDecimals: 8, tokenDecimals: 18})
         );
         guard.setOracleConfig(
             v3PolicyId,
             USDC,
-            OracleConfig({
-                chainlinkFeed: USDC_USD_FEED,
-                uniswapPool: WETH_USDC_POOL,
-                feedDecimals: 8,
-                tokenDecimals: 6
-            })
+            OracleConfig({chainlinkFeed: USDC_USD_FEED, uniswapPool: WETH_USDC_POOL, feedDecimals: 8, tokenDecimals: 6})
         );
 
         // Fund the user with WETH + USDC.
@@ -134,13 +121,13 @@ contract UniswapV3ForkTest is Fixture {
     }
 
     /// @notice QuoterV2 DOES have code on Arbitrum One at the pinned block
-/// (8,273 bytes at 0x61fFE014bA17989E743c5F6cB21bF9697530B21e). The spec
-/// §2.1 premise that it has no code is WRONG, corrected here with live
-/// proof. The adapter still computes execution prices in-adapter and
-/// never calls the Quoter (by design: it avoids the Quoter's
-/// revert-based quoting pattern and the extra dependency), so the
-/// in-adapter design stands — only the "no code" justification is
-/// corrected.
+    /// (8,273 bytes at 0x61fFE014bA17989E743c5F6cB21bF9697530B21e). The spec
+    /// §2.1 premise that it has no code is WRONG, corrected here with live
+    /// proof. The adapter still computes execution prices in-adapter and
+    /// never calls the Quoter (by design: it avoids the Quoter's
+    /// revert-based quoting pattern and the extra dependency), so the
+    /// in-adapter design stands — only the "no code" justification is
+    /// corrected.
     function test_Fork_QuoterV2_HasCode_AdapterNeverCallsIt() public view {
         assertGt(QUOTER_V2.code.length, 0, "QuoterV2 has code on Arbitrum One");
     }
@@ -213,18 +200,19 @@ contract UniswapV3ForkTest is Fixture {
     function test_Fork_PricePush_SwapReverts() public {
         // Push the price down by selling 1,500 WETH for USDC.
         vm.prank(user);
-        ISwapRouter(SWAP_ROUTER).exactInputSingle(
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: WETH,
-                tokenOut: USDC,
-                fee: 500,
-                recipient: user,
-                deadline: block.timestamp + 3600,
-                amountIn: 1500 ether,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: 0
-            })
-        );
+        ISwapRouter(SWAP_ROUTER)
+            .exactInputSingle(
+                ISwapRouter.ExactInputSingleParams({
+                    tokenIn: WETH,
+                    tokenOut: USDC,
+                    fee: 500,
+                    recipient: user,
+                    deadline: block.timestamp + 3600,
+                    amountIn: 1500 ether,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: 0
+                })
+            );
         // A small adapter swap now sees a pushed execution price.
         vm.prank(user);
         vm.expectRevert();
@@ -244,10 +232,7 @@ contract UniswapV3ForkTest is Fixture {
         // Second adapter with a drain-focused policy: huge outflow caps
         // and 100% single-share, so only the drain rule can bind.
         UniswapV3Adapter v3drain = new UniswapV3Adapter(
-            guard,
-            IUniswapV3Factory(FACTORY),
-            INonfungiblePositionManager(NPM),
-            IAaveOracle(AAVE_ORACLE)
+            guard, IUniswapV3Factory(FACTORY), INonfungiblePositionManager(NPM), IAaveOracle(AAVE_ORACLE)
         );
         Policy memory p =
             AdapterPolicyHelper.adapterPolicy(100_000_000 ether, 100_000_000 ether, 100_000_000 ether, 10_000);
@@ -259,22 +244,12 @@ contract UniswapV3ForkTest is Fixture {
         guard.setOracleConfig(
             drainPid,
             WETH,
-            OracleConfig({
-                chainlinkFeed: ETH_USD_FEED,
-                uniswapPool: WETH_USDC_POOL,
-                feedDecimals: 8,
-                tokenDecimals: 18
-            })
+            OracleConfig({chainlinkFeed: ETH_USD_FEED, uniswapPool: WETH_USDC_POOL, feedDecimals: 8, tokenDecimals: 18})
         );
         guard.setOracleConfig(
             drainPid,
             USDC,
-            OracleConfig({
-                chainlinkFeed: USDC_USD_FEED,
-                uniswapPool: WETH_USDC_POOL,
-                feedDecimals: 8,
-                tokenDecimals: 6
-            })
+            OracleConfig({chainlinkFeed: USDC_USD_FEED, uniswapPool: WETH_USDC_POOL, feedDecimals: 8, tokenDecimals: 6})
         );
 
         uint256 availUsd = v3drain.getPoolAvailableLiquidity(WETH_USDC_POOL, USDC);

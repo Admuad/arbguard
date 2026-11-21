@@ -82,10 +82,7 @@ contract Fixture is Test {
 
     function priceConfig() internal pure returns (PriceConfig memory) {
         return PriceConfig({
-            twapSeconds: 1800,
-            maxOracleDeviationBps: 200,
-            chainlinkStaleAfter: 7200,
-            sequencerFeed: address(0)
+            twapSeconds: 1800, maxOracleDeviationBps: 200, chainlinkStaleAfter: 7200, sequencerFeed: address(0)
         });
     }
 
@@ -113,20 +110,14 @@ contract Fixture is Test {
             poolPolicyId,
             address(asset),
             OracleConfig({
-                chainlinkFeed: address(wethFeed),
-                uniswapPool: address(mockPool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(wethFeed), uniswapPool: address(mockPool), feedDecimals: 8, tokenDecimals: 18
             })
         );
         guard.setOracleConfig(
             poolPolicyId,
             address(token1),
             OracleConfig({
-                chainlinkFeed: address(usdcFeed),
-                uniswapPool: address(mockPool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(usdcFeed), uniswapPool: address(mockPool), feedDecimals: 8, tokenDecimals: 18
             })
         );
 

@@ -530,7 +530,11 @@ contract ArbGuard is Ownable2Step, IArbGuard {
         if (_hasPendingOracleUpdate[policyId][token]) {
             revert PendingOracleUpdateExists(policyId, token);
         }
-        _proposeOracleUpdate(policyId, token, OracleConfig({chainlinkFeed: address(0), uniswapPool: address(0), feedDecimals: 0, tokenDecimals: 0}));
+        _proposeOracleUpdate(
+            policyId,
+            token,
+            OracleConfig({chainlinkFeed: address(0), uniswapPool: address(0), feedDecimals: 0, tokenDecimals: 0})
+        );
     }
 
     /// @notice Apply a pending oracle config change (or removal). Owner only,
@@ -569,7 +573,11 @@ contract ArbGuard is Ownable2Step, IArbGuard {
         return _oracleConfigs[policyId][token];
     }
 
-    function getPendingOracleConfig(uint256 policyId, address token) external view returns (PendingOracleUpdate memory) {
+    function getPendingOracleConfig(uint256 policyId, address token)
+        external
+        view
+        returns (PendingOracleUpdate memory)
+    {
         _requirePolicy(policyId);
         return _pendingOracleUpdates[policyId][token];
     }
@@ -669,10 +677,7 @@ contract ArbGuard is Ownable2Step, IArbGuard {
     function _proposeUpdate(uint256 policyId, Policy memory policy, PriceConfig memory price) internal {
         uint256 delay = _policies[policyId].policyTimelockSeconds;
         _pendingUpdates[policyId] = PendingUpdate({
-            policy: policy,
-            price: price,
-            executableAt: block.timestamp + delay,
-            proposedAt: block.timestamp
+            policy: policy, price: price, executableAt: block.timestamp + delay, proposedAt: block.timestamp
         });
         _hasPendingUpdate[policyId] = true;
         emit PolicyUpdateProposed(policyId, block.timestamp + delay);
@@ -691,11 +696,8 @@ contract ArbGuard is Ownable2Step, IArbGuard {
     /// `setOracleConfig` (change path) and `removeOracleConfig`.
     function _proposeOracleUpdate(uint256 policyId, address token, OracleConfig memory cfg) internal {
         uint256 delay = _policies[policyId].policyTimelockSeconds;
-        _pendingOracleUpdates[policyId][token] = PendingOracleUpdate({
-            config: cfg,
-            executableAt: block.timestamp + delay,
-            proposedAt: block.timestamp
-        });
+        _pendingOracleUpdates[policyId][token] =
+            PendingOracleUpdate({config: cfg, executableAt: block.timestamp + delay, proposedAt: block.timestamp});
         _hasPendingOracleUpdate[policyId][token] = true;
         emit OracleConfigUpdateProposed(policyId, token, block.timestamp + delay);
     }
@@ -721,8 +723,9 @@ contract ArbGuard is Ownable2Step, IArbGuard {
         }
         // Phase 2: a health-factor floor below 1.0x is already liquidatable,
         // so it is a configuration error; 0 means the rule is off.
-        if (policy.minHealthFactorBps != 0
-            && (policy.minHealthFactorBps < 10_000 || policy.minHealthFactorBps > 50_000)) {
+        if (
+            policy.minHealthFactorBps != 0 && (policy.minHealthFactorBps < 10_000 || policy.minHealthFactorBps > 50_000)
+        ) {
             revert InvalidPolicy("minHealthFactorBps out of range");
         }
         if (policy.maxReserveDrainBps > 10_000) revert InvalidPolicy("maxReserveDrainBps out of range");
@@ -776,9 +779,7 @@ contract ArbGuard is Ownable2Step, IArbGuard {
     function _sequencerReason(uint256 policyId) internal view returns (Reason) {
         address feed = _priceConfigs[policyId].sequencerFeed;
         if (feed == address(0)) return Reason.NONE;
-        try IAggregatorV3(feed).latestRoundData() returns (
-            uint80, int256 answer, uint256 startedAt, uint256, uint80
-        ) {
+        try IAggregatorV3(feed).latestRoundData() returns (uint80, int256 answer, uint256 startedAt, uint256, uint80) {
             if (answer == 1) return Reason.SEQUENCER_DOWN;
             if (startedAt == 0) return Reason.NONE; // uninitialized feed: up
             if (startedAt > block.timestamp) return Reason.NONE;
@@ -913,6 +914,7 @@ contract ArbGuard is Ownable2Step, IArbGuard {
             return (0, false);
         }
     }
+
     /// RAW token units, so the 1e18-scaled raw price is
     /// `sqrtRatioX96^2 * 1e18 / 2^192` with NO decimal correction (see the
     /// file header: the spec §1.5 decimal term is wrong for raw prices).
@@ -1009,13 +1011,12 @@ contract ArbGuard is Ownable2Step, IArbGuard {
             return Reason.OUTFLOW_PER_BLOCK;
         }
         // (b2) Per-hour outflow window (0 cap = unenforced).
-        if (policy.maxOutflowPerHour > 0
-            && newHour > _effectiveCap(policy.maxOutflowPerHour, mode, policy.throttleBps)) {
+        if (policy.maxOutflowPerHour > 0 && newHour > _effectiveCap(policy.maxOutflowPerHour, mode, policy.throttleBps))
+        {
             return Reason.OUTFLOW_PER_HOUR;
         }
         // (b3) Per-day outflow window (0 cap = unenforced).
-        if (policy.maxOutflowPerDay > 0
-            && newDay > _effectiveCap(policy.maxOutflowPerDay, mode, policy.throttleBps)) {
+        if (policy.maxOutflowPerDay > 0 && newDay > _effectiveCap(policy.maxOutflowPerDay, mode, policy.throttleBps)) {
             return Reason.OUTFLOW_PER_DAY;
         }
         // (c) Single-share of TVL (unchanged by throttle).
@@ -1029,8 +1030,7 @@ contract ArbGuard is Ownable2Step, IArbGuard {
         // bps where 10000 = 1.0x, so the 1e18-scaled floor is
         // minHealthFactorBps * 1e14. A missing projection (0) fails when
         // the rule is on: the adapter must always provide it.
-        if (policy.minHealthFactorBps > 0
-            && (action.kind == ActionKind.BORROW || action.kind == ActionKind.WITHDRAW)) {
+        if (policy.minHealthFactorBps > 0 && (action.kind == ActionKind.BORROW || action.kind == ActionKind.WITHDRAW)) {
             if (action.healthFactorAfter < uint256(policy.minHealthFactorBps) * 1e14) {
                 return Reason.HEALTH_FACTOR;
             }
@@ -1040,9 +1040,12 @@ contract ArbGuard is Ownable2Step, IArbGuard {
         // actually leave right now), not tvl (the total value at risk).
         // An empty reserve with a positive amount always reverts; a zero
         // amount against an empty reserve passes.
-        if (policy.maxReserveDrainBps > 0
-            && (action.kind == ActionKind.BORROW || action.kind == ActionKind.WITHDRAW
-                || action.kind == ActionKind.SWAP)) {
+        if (
+            policy.maxReserveDrainBps > 0
+                && (action.kind == ActionKind.BORROW
+                    || action.kind == ActionKind.WITHDRAW
+                    || action.kind == ActionKind.SWAP)
+        ) {
             if (action.amountOut * 10_000 > action.availableLiquidity * policy.maxReserveDrainBps) {
                 return Reason.RESERVE_DRAIN;
             }

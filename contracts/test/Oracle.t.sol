@@ -89,18 +89,8 @@ contract OracleTest is Fixture {
         // 1:1 price and would disagree with Chainlink's $1,735.
         (MockAggregatorV3 wethF, MockAggregatorV3 usdcF) = _bothFeeds(173560197194, 99989000);
         (uint256 pid,) = _registerFresh(
-            OracleConfig({
-                chainlinkFeed: address(wethF),
-                uniswapPool: address(0),
-                feedDecimals: 8,
-                tokenDecimals: 18
-            }),
-            OracleConfig({
-                chainlinkFeed: address(usdcF),
-                uniswapPool: address(0),
-                feedDecimals: 8,
-                tokenDecimals: 6
-            }),
+            OracleConfig({chainlinkFeed: address(wethF), uniswapPool: address(0), feedDecimals: 8, tokenDecimals: 18}),
+            OracleConfig({chainlinkFeed: address(usdcF), uniswapPool: address(0), feedDecimals: 8, tokenDecimals: 6}),
             priceConfig()
         );
         (uint256 ref, address source) = guard.getReferencePrice(pid, address(asset), address(token1));
@@ -122,17 +112,11 @@ contract OracleTest is Fixture {
         MockAggregatorV3 feedOut = new MockAggregatorV3(1e18, block.timestamp, 18);
         (uint256 pid,) = _registerFresh(
             OracleConfig({
-                chainlinkFeed: address(feedIn),
-                uniswapPool: address(0),
-                feedDecimals: 18,
-                tokenDecimals: 18
+                chainlinkFeed: address(feedIn), uniswapPool: address(0), feedDecimals: 18, tokenDecimals: 18
             }),
             OracleConfig({
-                chainlinkFeed: address(feedOut),
-                uniswapPool: address(0),
-                feedDecimals: 18,
-                tokenDecimals: 18
-            }),
+                    chainlinkFeed: address(feedOut), uniswapPool: address(0), feedDecimals: 18, tokenDecimals: 18
+                }),
             priceConfig()
         );
         (uint256 ref,) = guard.getReferencePrice(pid, address(asset), address(token1));
@@ -144,18 +128,8 @@ contract OracleTest is Fixture {
         // No Chainlink feeds at all: TWAP-only. Tick 10000 -> price ~2.718.
         MockUniswapV3Pool pool = new MockUniswapV3Pool(address(asset), address(token1), 10000);
         (uint256 pid,) = _registerFresh(
-            OracleConfig({
-                chainlinkFeed: address(0),
-                uniswapPool: address(pool),
-                feedDecimals: 0,
-                tokenDecimals: 18
-            }),
-            OracleConfig({
-                chainlinkFeed: address(0),
-                uniswapPool: address(pool),
-                feedDecimals: 0,
-                tokenDecimals: 18
-            }),
+            OracleConfig({chainlinkFeed: address(0), uniswapPool: address(pool), feedDecimals: 0, tokenDecimals: 18}),
+            OracleConfig({chainlinkFeed: address(0), uniswapPool: address(pool), feedDecimals: 0, tokenDecimals: 18}),
             priceConfig()
         );
         (uint256 refFwd, address srcFwd) = guard.getReferencePrice(pid, address(asset), address(token1));
@@ -173,18 +147,8 @@ contract OracleTest is Fixture {
     function test_TwapOnly_NegativeTick() public {
         MockUniswapV3Pool pool = new MockUniswapV3Pool(address(asset), address(token1), -100);
         (uint256 pid,) = _registerFresh(
-            OracleConfig({
-                chainlinkFeed: address(0),
-                uniswapPool: address(pool),
-                feedDecimals: 0,
-                tokenDecimals: 18
-            }),
-            OracleConfig({
-                chainlinkFeed: address(0),
-                uniswapPool: address(pool),
-                feedDecimals: 0,
-                tokenDecimals: 18
-            }),
+            OracleConfig({chainlinkFeed: address(0), uniswapPool: address(pool), feedDecimals: 0, tokenDecimals: 18}),
+            OracleConfig({chainlinkFeed: address(0), uniswapPool: address(pool), feedDecimals: 0, tokenDecimals: 18}),
             priceConfig()
         );
         (uint256 ref,) = guard.getReferencePrice(pid, address(asset), address(token1));
@@ -211,8 +175,7 @@ contract OracleTest is Fixture {
         vm.expectRevert(abi.encodeWithSelector(ArbGuard.ArbGuardViolation.selector, Reason.ORACLE_DISAGREEMENT));
         guard.getReferencePrice(poolPolicyId, address(asset), address(token1));
         // Mirror: simulateCheck returns (false, ORACLE_DISAGREEMENT).
-        (bool ok, Reason reason) =
-            guard.simulateCheck(address(guardedPool), _swapAction(1 ether));
+        (bool ok, Reason reason) = guard.simulateCheck(address(guardedPool), _swapAction(1 ether));
         assertFalse(ok);
         assertEq(uint8(reason), uint8(Reason.ORACLE_DISAGREEMENT));
     }
@@ -225,8 +188,7 @@ contract OracleTest is Fixture {
         (uint256 ref, address source) = guard.getReferencePrice(poolPolicyId, address(asset), address(token1));
         assertEq(ref, 1020300000000000000);
         assertEq(source, address(usdcFeed));
-        (bool ok, Reason reason) =
-            guard.simulateCheck(address(guardedPool), _swapAction(1020300000000000000));
+        (bool ok, Reason reason) = guard.simulateCheck(address(guardedPool), _swapAction(1020300000000000000));
         assertTrue(ok);
         assertEq(uint8(reason), uint8(Reason.NONE));
     }
@@ -274,8 +236,7 @@ contract OracleTest is Fixture {
         mockPool.setRevert(true);
         vm.expectRevert(abi.encodeWithSelector(ArbGuard.ArbGuardViolation.selector, Reason.ORACLE_UNAVAILABLE));
         guard.getReferencePrice(poolPolicyId, address(asset), address(token1));
-        (bool ok, Reason reason) =
-            guard.simulateCheck(address(guardedPool), _swapAction(1 ether));
+        (bool ok, Reason reason) = guard.simulateCheck(address(guardedPool), _swapAction(1 ether));
         assertFalse(ok);
         assertEq(uint8(reason), uint8(Reason.ORACLE_UNAVAILABLE));
     }
@@ -329,20 +290,13 @@ contract OracleTest is Fixture {
     function test_TwapWrongPair_ChainlinkUsed() public {
         // The registered pool prices a different pair -> TWAP invalid,
         // Chainlink used. (Pool token0/token1 are unrelated addresses.)
-        MockUniswapV3Pool wrongPool =
-            new MockUniswapV3Pool(address(0xAAAA), address(0xBBBB), 0);
+        MockUniswapV3Pool wrongPool = new MockUniswapV3Pool(address(0xAAAA), address(0xBBBB), 0);
         (uint256 pid,) = _registerFresh(
             OracleConfig({
-                chainlinkFeed: address(wethFeed),
-                uniswapPool: address(wrongPool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(wethFeed), uniswapPool: address(wrongPool), feedDecimals: 8, tokenDecimals: 18
             }),
             OracleConfig({
-                chainlinkFeed: address(usdcFeed),
-                uniswapPool: address(wrongPool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(usdcFeed), uniswapPool: address(wrongPool), feedDecimals: 8, tokenDecimals: 18
             }),
             priceConfig()
         );
@@ -390,24 +344,15 @@ contract OracleTest is Fixture {
     }
 
     // ---------------------------------------------------------------- sequencer
-    function _registerWithSequencer(MockSequencerFeed seq)
-        internal
-        returns (uint256 pid, address protocol)
-    {
+    function _registerWithSequencer(MockSequencerFeed seq) internal returns (uint256 pid, address protocol) {
         PriceConfig memory pc = priceConfig();
         pc.sequencerFeed = address(seq);
         return _registerFresh(
             OracleConfig({
-                chainlinkFeed: address(wethFeed),
-                uniswapPool: address(mockPool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(wethFeed), uniswapPool: address(mockPool), feedDecimals: 8, tokenDecimals: 18
             }),
             OracleConfig({
-                chainlinkFeed: address(usdcFeed),
-                uniswapPool: address(mockPool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(usdcFeed), uniswapPool: address(mockPool), feedDecimals: 8, tokenDecimals: 18
             }),
             pc
         );
@@ -510,10 +455,7 @@ contract OracleTest is Fixture {
             pid,
             address(asset),
             OracleConfig({
-                chainlinkFeed: address(0),
-                uniswapPool: address(mockPool),
-                feedDecimals: 0,
-                tokenDecimals: 19
+                chainlinkFeed: address(0), uniswapPool: address(mockPool), feedDecimals: 0, tokenDecimals: 19
             })
         );
     }

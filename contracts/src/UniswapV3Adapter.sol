@@ -118,12 +118,7 @@ contract UniswapV3Adapter {
     int24 internal constant MIN_TICK = -887272;
     int24 internal constant MAX_TICK = 887272;
 
-    constructor(
-        IArbGuard _guard,
-        IUniswapV3Factory _factory,
-        INonfungiblePositionManager _npm,
-        IAaveOracle _oracle
-    ) {
+    constructor(IArbGuard _guard, IUniswapV3Factory _factory, INonfungiblePositionManager _npm, IAaveOracle _oracle) {
         if (address(_guard) == address(0)) revert AdapterError("guard is zero address");
         if (address(_factory) == address(0)) revert AdapterError("factory is zero address");
         if (address(_npm) == address(0)) revert AdapterError("npm is zero address");
@@ -249,10 +244,7 @@ contract UniswapV3Adapter {
         (uint256 positionValue, uint256 liquidityValue) = _positionValues(tokenId);
         PositionHead memory head = _positionHead(tokenId);
         uint256 removedValue = _removedValue(head, liquidity, liquidityValue);
-        guard.check(
-            address(this),
-            _withdrawAction(head.token0, removedValue, positionValue)
-        );
+        guard.check(address(this), _withdrawAction(head.token0, removedValue, positionValue));
         npm.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -276,16 +268,10 @@ contract UniswapV3Adapter {
         (uint256 positionValue,) = _positionValues(tokenId);
         (uint256 owed0Usd, uint256 owed1Usd) = _owedValues(tokenId, amount0Max, amount1Max);
         PositionHead memory head = _positionHead(tokenId);
-        guard.check(
-            address(this),
-            _withdrawAction(head.token0, owed0Usd + owed1Usd, positionValue)
-        );
+        guard.check(address(this), _withdrawAction(head.token0, owed0Usd + owed1Usd, positionValue));
         (amount0, amount1) = npm.collect(
             INonfungiblePositionManager.CollectParams({
-                tokenId: tokenId,
-                recipient: msg.sender,
-                amount0Max: amount0Max,
-                amount1Max: amount1Max
+                tokenId: tokenId, recipient: msg.sender, amount0Max: amount0Max, amount1Max: amount1Max
             })
         );
     }
@@ -344,7 +330,8 @@ contract UniswapV3Adapter {
         // The pool takes its fee from the input; the output is computed
         // on the post-fee amount.
         uint256 amountInAfterFee = (amountIn * (1_000_000 - fee)) / 1_000_000;
-        uint160 sqrtNext = SqrtPriceMath.getNextSqrtPriceFromInput(sqrtPriceX96, liquidity, amountInAfterFee, zeroForOne);
+        uint160 sqrtNext =
+            SqrtPriceMath.getNextSqrtPriceFromInput(sqrtPriceX96, liquidity, amountInAfterFee, zeroForOne);
         _requireSameTickGroup(pool, tick, sqrtNext, zeroForOne);
         if (zeroForOne) {
             amountOut = SqrtPriceMath.getAmount1Delta(sqrtNext, sqrtPriceX96, liquidity, false);
@@ -366,11 +353,7 @@ contract UniswapV3Adapter {
     /// @notice Pool's available `tokenOut` reserve (its actual token
     /// balance), USD 1e18 — the same ground-truth definition as the Aave
     /// adapter (the pool can only disburse what it holds).
-    function getPoolAvailableLiquidity(address pool, address tokenOut)
-        public
-        view
-        returns (uint256 availableUsd1e18)
-    {
+    function getPoolAvailableLiquidity(address pool, address tokenOut) public view returns (uint256 availableUsd1e18) {
         return getUsdValue(tokenOut, IERC20(tokenOut).balanceOf(pool));
     }
 
@@ -386,11 +369,7 @@ contract UniswapV3Adapter {
     /// @notice Read a pool's tokens and verify the factory recognises it
     /// for its own fee tier. Reverts AdapterNotConfigured for a pool the
     /// factory does not know.
-    function _verifiedPool(address pool)
-        internal
-        view
-        returns (address token0, address token1, uint24 fee)
-    {
+    function _verifiedPool(address pool) internal view returns (address token0, address token1, uint24 fee) {
         (token0, token1) = _poolTokens(pool);
         fee = IUniswapV3Pool(pool).fee();
         if (factory.getPool(token0, token1, fee) != pool) revert AdapterNotConfigured(pool);
@@ -473,16 +452,13 @@ contract UniswapV3Adapter {
 
     function _positionHead(uint256 tokenId) internal view returns (PositionHead memory head) {
         (
-            ,
-            ,
+            ,,
             head.token0,
             head.token1,
             head.fee,
             head.tickLower,
             head.tickUpper,
-            head.liquidity,
-            ,
-            ,
+            head.liquidity,,,
             head.tokensOwed0,
             head.tokensOwed1
         ) = npm.positions(tokenId);
@@ -490,11 +466,7 @@ contract UniswapV3Adapter {
 
     /// @notice (total position value, liquidity-only value), both USD 1e18.
     /// The liquidity value excludes owed fees; the total includes them.
-    function _positionValues(uint256 tokenId)
-        internal
-        view
-        returns (uint256 positionValue, uint256 liquidityValue)
-    {
+    function _positionValues(uint256 tokenId) internal view returns (uint256 positionValue, uint256 liquidityValue) {
         PositionHead memory head = _positionHead(tokenId);
         address pool = factory.getPool(head.token0, head.token1, head.fee);
         if (pool == address(0)) revert AdapterNotConfigured(pool);

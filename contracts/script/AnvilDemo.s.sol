@@ -86,10 +86,7 @@ contract AnvilDemo is Script {
             maxReserveDrainBps: 0
         });
         PriceConfig memory priceConfig = PriceConfig({
-            twapSeconds: 1800,
-            maxOracleDeviationBps: 200,
-            chainlinkStaleAfter: 7200,
-            sequencerFeed: address(0)
+            twapSeconds: 1800, maxOracleDeviationBps: 200, chainlinkStaleAfter: 7200, sequencerFeed: address(0)
         });
         d.guard.registerPolicy(address(d.guardedVault), vaultPolicy, priceConfig);
         d.guard.registerPolicy(address(d.guardedPool), poolPolicy, priceConfig);
@@ -103,26 +100,22 @@ contract AnvilDemo is Script {
         DemoFeed wethFeed = new DemoFeed(1e8, 8);
         DemoFeed usdcFeed = new DemoFeed(1e8, 8);
         DemoPool demoPool = new DemoPool(address(d.weth), address(d.usdc));
-        d.guard.setOracleConfig(
-            1,
-            address(d.weth),
-            OracleConfig({
-                chainlinkFeed: address(wethFeed),
-                uniswapPool: address(demoPool),
-                feedDecimals: 8,
-                tokenDecimals: 18
-            })
-        );
-        d.guard.setOracleConfig(
-            1,
-            address(d.usdc),
-            OracleConfig({
-                chainlinkFeed: address(usdcFeed),
-                uniswapPool: address(demoPool),
-                feedDecimals: 8,
-                tokenDecimals: 18
-            })
-        );
+        d.guard
+            .setOracleConfig(
+                1,
+                address(d.weth),
+                OracleConfig({
+                    chainlinkFeed: address(wethFeed), uniswapPool: address(demoPool), feedDecimals: 8, tokenDecimals: 18
+                })
+            );
+        d.guard
+            .setOracleConfig(
+                1,
+                address(d.usdc),
+                OracleConfig({
+                    chainlinkFeed: address(usdcFeed), uniswapPool: address(demoPool), feedDecimals: 8, tokenDecimals: 18
+                })
+            );
 
         console.log("=== ArbGuard Anvil demo ===");
         console.log("ArbGuard:       ", address(d.guard));

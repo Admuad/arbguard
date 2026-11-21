@@ -127,22 +127,12 @@ contract SepoliaForkTest is Fixture {
         guard.setOracleConfig(
             pid,
             address(asset),
-            OracleConfig({
-                chainlinkFeed: sepoliaEthFeed,
-                uniswapPool: address(0),
-                feedDecimals: 8,
-                tokenDecimals: 18
-            })
+            OracleConfig({chainlinkFeed: sepoliaEthFeed, uniswapPool: address(0), feedDecimals: 8, tokenDecimals: 18})
         );
         guard.setOracleConfig(
             pid,
             address(token1),
-            OracleConfig({
-                chainlinkFeed: address(usdcF),
-                uniswapPool: address(0),
-                feedDecimals: 8,
-                tokenDecimals: 18
-            })
+            OracleConfig({chainlinkFeed: address(usdcF), uniswapPool: address(0), feedDecimals: 8, tokenDecimals: 18})
         );
 
         Action memory swap = Action({
@@ -174,22 +164,12 @@ contract SepoliaForkTest is Fixture {
         guard.setOracleConfig(
             pid,
             address(asset),
-            OracleConfig({
-                chainlinkFeed: address(wethF),
-                uniswapPool: address(0),
-                feedDecimals: 8,
-                tokenDecimals: 18
-            })
+            OracleConfig({chainlinkFeed: address(wethF), uniswapPool: address(0), feedDecimals: 8, tokenDecimals: 18})
         );
         guard.setOracleConfig(
             pid,
             address(token1),
-            OracleConfig({
-                chainlinkFeed: address(usdcF),
-                uniswapPool: address(0),
-                feedDecimals: 8,
-                tokenDecimals: 18
-            })
+            OracleConfig({chainlinkFeed: address(usdcF), uniswapPool: address(0), feedDecimals: 8, tokenDecimals: 18})
         );
         Action memory swap = Action({
             kind: ActionKind.SWAP,

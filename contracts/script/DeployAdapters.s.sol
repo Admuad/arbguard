@@ -23,7 +23,9 @@ library AdapterPolicyHelper {
         Policy memory policy,
         PriceConfig memory priceConfig
     ) internal returns (uint256 policyId) {
-        if (!policy.usdDenominated) revert AdapterError("adapter policy must be usdDenominated");
+        if (!policy.usdDenominated) {
+            revert AdapterError("adapter policy must be usdDenominated");
+        }
         return guard.registerPolicy(adapter, policy, priceConfig);
     }
 
@@ -59,10 +61,7 @@ library AdapterPolicyHelper {
     /// whose actions are not swaps and never run the sequencer check).
     function adapterPriceConfig(address sequencerFeed) internal pure returns (PriceConfig memory) {
         return PriceConfig({
-            twapSeconds: 1800,
-            maxOracleDeviationBps: 200,
-            chainlinkStaleAfter: 7200,
-            sequencerFeed: sequencerFeed
+            twapSeconds: 1800, maxOracleDeviationBps: 200, chainlinkStaleAfter: 7200, sequencerFeed: sequencerFeed
         });
     }
 }
@@ -110,16 +109,12 @@ contract DeployAdapters is Script {
         address oracleAddr = _getAddress(POOL_ADDRESSES_PROVIDER, "getPriceOracle()");
         IPool pool = IPool(poolAddr);
         address[] memory reserves = pool_getReservesList(poolAddr);
-        AaveAdapter aave = new AaveAdapter(
-            guard, pool, IPoolDataProvider(dataProviderAddr), IAaveOracle(oracleAddr), reserves
-        );
+        AaveAdapter aave =
+            new AaveAdapter(guard, pool, IPoolDataProvider(dataProviderAddr), IAaveOracle(oracleAddr), reserves);
 
         // Uniswap V3.
         UniswapV3Adapter v3 = new UniswapV3Adapter(
-            guard,
-            IUniswapV3Factory(UNISWAP_FACTORY),
-            INonfungiblePositionManager(NPM),
-            IAaveOracle(oracleAddr)
+            guard, IUniswapV3Factory(UNISWAP_FACTORY), INonfungiblePositionManager(NPM), IAaveOracle(oracleAddr)
         );
 
         // Aave policy: USD caps, HF floor 1.25x, drain 50%, no sequencer
@@ -138,8 +133,7 @@ contract DeployAdapters is Script {
         // health-factor rule is an Aave concept and must not bind on
         // Uniswap removals. Real 0.05% pool in the OracleConfig, real
         // sequencer feed.
-        Policy memory v3Policy =
-            AdapterPolicyHelper.adapterPolicy(50_000 ether, 500_000 ether, 2_000_000 ether, 5000);
+        Policy memory v3Policy = AdapterPolicyHelper.adapterPolicy(50_000 ether, 500_000 ether, 2_000_000 ether, 5000);
         v3Policy.minHealthFactorBps = 0;
         uint256 v3PolicyId = AdapterPolicyHelper.registerAdapterPolicy(
             guard, address(v3), v3Policy, AdapterPolicyHelper.adapterPriceConfig(SEQUENCER_FEED)
@@ -148,22 +142,12 @@ contract DeployAdapters is Script {
         guard.setOracleConfig(
             v3PolicyId,
             WETH,
-            OracleConfig({
-                chainlinkFeed: ETH_USD_FEED,
-                uniswapPool: WETH_USDC_POOL,
-                feedDecimals: 8,
-                tokenDecimals: 18
-            })
+            OracleConfig({chainlinkFeed: ETH_USD_FEED, uniswapPool: WETH_USDC_POOL, feedDecimals: 8, tokenDecimals: 18})
         );
         guard.setOracleConfig(
             v3PolicyId,
             USDC,
-            OracleConfig({
-                chainlinkFeed: USDC_USD_FEED,
-                uniswapPool: WETH_USDC_POOL,
-                feedDecimals: 8,
-                tokenDecimals: 6
-            })
+            OracleConfig({chainlinkFeed: USDC_USD_FEED, uniswapPool: WETH_USDC_POOL, feedDecimals: 8, tokenDecimals: 6})
         );
         vm.stopBroadcast();
 
@@ -181,8 +165,7 @@ contract DeployAdapters is Script {
     }
 
     function pool_getReservesList(address poolAddr) internal view returns (address[] memory) {
-        (bool ok, bytes memory ret) =
-            poolAddr.staticcall(abi.encodeWithSignature("getReservesList()"));
+        (bool ok, bytes memory ret) = poolAddr.staticcall(abi.encodeWithSignature("getReservesList()"));
         require(ok, "getReservesList failed");
         return abi.decode(ret, (address[]));
     }

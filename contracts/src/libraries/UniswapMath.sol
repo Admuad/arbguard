@@ -273,9 +273,8 @@ library SqrtPriceMath {
         returns (uint160)
     {
         if (add) {
-            uint256 quotient = amount <= type(uint160).max
-                ? (amount << 96) / liquidity
-                : FullMath.mulDiv(amount, Q96, liquidity);
+            uint256 quotient =
+                amount <= type(uint160).max ? (amount << 96) / liquidity : FullMath.mulDiv(amount, Q96, liquidity);
 
             return _toUint160(uint256(sqrtPX96) + quotient);
         } else {

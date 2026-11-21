@@ -65,13 +65,7 @@ contract AaveForkTest is Fixture {
         super.setUp();
 
         address[] memory reserves = IPool(POOL).getReservesList();
-        aave = new AaveAdapter(
-            guard,
-            IPool(POOL),
-            IPoolDataProvider(DATA_PROVIDER),
-            IAaveOracle(AAVE_ORACLE),
-            reserves
-        );
+        aave = new AaveAdapter(guard, IPool(POOL), IPoolDataProvider(DATA_PROVIDER), IAaveOracle(AAVE_ORACLE), reserves);
         aavePolicyId = AdapterPolicyHelper.registerAdapterPolicy(
             guard,
             address(aave),
@@ -126,20 +120,8 @@ contract AaveForkTest is Fixture {
     /// balanceOf(pool) and records both numbers.
     function test_Fork_AvailableLiquidity_Divergence() public {
         // Read the formula's inputs from the live provider.
-        (
-            ,
-            ,
-            uint256 totalAToken,
-            uint256 totalStableDebt,
-            uint256 totalVariableDebt,
-            ,
-            ,
-            ,
-            ,
-            ,
-            ,
-
-        ) = IPoolDataProvider(DATA_PROVIDER).getReserveData(WETH);
+        (,, uint256 totalAToken, uint256 totalStableDebt, uint256 totalVariableDebt,,,,,,,) =
+            IPoolDataProvider(DATA_PROVIDER).getReserveData(WETH);
         uint256 formulaAvailable = totalAToken - totalStableDebt - totalVariableDebt;
         uint256 realBalance = IERC20(WETH).balanceOf(POOL);
         // The adapter's read is the real balance (the top-up is included
@@ -275,9 +257,7 @@ contract AaveForkTest is Fixture {
         assertEq(debt, 0);
         assertEq(hf, type(uint256).max);
         // The Provider's version reverts on a direct call.
-        (bool ok,) = DATA_PROVIDER.call(
-            abi.encodeWithSignature("getUserAccountData(address)", user)
-        );
+        (bool ok,) = DATA_PROVIDER.call(abi.encodeWithSignature("getUserAccountData(address)", user));
         assertFalse(ok, "Provider getUserAccountData reverts on direct call");
     }
 }

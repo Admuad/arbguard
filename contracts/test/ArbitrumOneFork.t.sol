@@ -57,39 +57,22 @@ contract ArbitrumOneForkTest is Fixture {
         // Real-token policy: same limits as the pool policy, but with the
         // real Chainlink feeds + real pool, and the real sequencer feed.
         // WETH 18 dec, USDC 6 dec, both feeds 8 dec.
-        realPolicyId = guard.registerPolicy(
-            address(0xBEEF),
-            poolPolicy(),
-            priceConfigWithSequencer()
-        );
+        realPolicyId = guard.registerPolicy(address(0xBEEF), poolPolicy(), priceConfigWithSequencer());
         guard.setOracleConfig(
             realPolicyId,
             WETH,
-            OracleConfig({
-                chainlinkFeed: ETH_USD_FEED,
-                uniswapPool: WETH_USDC_POOL,
-                feedDecimals: 8,
-                tokenDecimals: 18
-            })
+            OracleConfig({chainlinkFeed: ETH_USD_FEED, uniswapPool: WETH_USDC_POOL, feedDecimals: 8, tokenDecimals: 18})
         );
         guard.setOracleConfig(
             realPolicyId,
             USDC,
-            OracleConfig({
-                chainlinkFeed: USDC_USD_FEED,
-                uniswapPool: WETH_USDC_POOL,
-                feedDecimals: 8,
-                tokenDecimals: 6
-            })
+            OracleConfig({chainlinkFeed: USDC_USD_FEED, uniswapPool: WETH_USDC_POOL, feedDecimals: 8, tokenDecimals: 6})
         );
     }
 
     function priceConfigWithSequencer() internal pure returns (PriceConfig memory) {
         return PriceConfig({
-            twapSeconds: 1800,
-            maxOracleDeviationBps: 200,
-            chainlinkStaleAfter: 7200,
-            sequencerFeed: SEQUENCER_FEED
+            twapSeconds: 1800, maxOracleDeviationBps: 200, chainlinkStaleAfter: 7200, sequencerFeed: SEQUENCER_FEED
         });
     }
 
@@ -223,26 +206,25 @@ contract ArbitrumOneForkTest is Fixture {
         address router = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
         uint256 wethAmount = 1500 ether; // 1500 WETH (~$2.6M at $1,735)
         deal(WETH, address(this), wethAmount);
-        (bool okApprove,) = WETH.call(
-            abi.encodeWithSignature("approve(address,uint256)", router, wethAmount)
-        );
+        (bool okApprove,) = WETH.call(abi.encodeWithSignature("approve(address,uint256)", router, wethAmount));
         require(okApprove, "WETH approve failed");
 
         // exactInputSingle: WETH -> USDC, fee 500 (0.05%), push price down
         // (selling WETH lowers the WETH price). We measure the loss.
         uint256 usdcBefore = _erc20Balance(USDC, address(this));
-        uint256 usdcOut = ISwapRouter(router).exactInputSingle(
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: WETH,
-                tokenOut: USDC,
-                fee: 500,
-                recipient: address(this),
-                deadline: block.timestamp + 3600,
-                amountIn: wethAmount,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: 0
-            })
-        );
+        uint256 usdcOut = ISwapRouter(router)
+            .exactInputSingle(
+                ISwapRouter.ExactInputSingleParams({
+                    tokenIn: WETH,
+                    tokenOut: USDC,
+                    fee: 500,
+                    recipient: address(this),
+                    deadline: block.timestamp + 3600,
+                    amountIn: wethAmount,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: 0
+                })
+            );
         uint256 usdcAfter = _erc20Balance(USDC, address(this));
         assertEq(usdcAfter - usdcBefore, usdcOut, "USDC balance mismatch");
 
@@ -326,9 +308,7 @@ contract ArbitrumOneForkTest is Fixture {
     }
 
     function _erc20Balance(address token, address who) internal view returns (uint256) {
-        (bool ok, bytes memory ret) = token.staticcall(
-            abi.encodeWithSignature("balanceOf(address)", who)
-        );
+        (bool ok, bytes memory ret) = token.staticcall(abi.encodeWithSignature("balanceOf(address)", who));
         require(ok, "balanceOf failed");
         return abi.decode(ret, (uint256));
     }

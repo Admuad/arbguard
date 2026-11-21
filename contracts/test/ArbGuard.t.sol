@@ -90,17 +90,13 @@ contract ArbGuardTest is Fixture {
 
         bad = _policy();
         bad.throttleBps = 0;
-        vm.expectRevert(
-            abi.encodeWithSelector(ArbGuard.InvalidPolicy.selector, "throttleBps out of range 1..10000")
-        );
+        vm.expectRevert(abi.encodeWithSelector(ArbGuard.InvalidPolicy.selector, "throttleBps out of range 1..10000"));
         guard.registerPolicy(freshProtocol, bad, priceConfig());
 
         bad = _policy();
         bad.policyTimelockSeconds = 3599;
         vm.expectRevert(
-            abi.encodeWithSelector(
-                ArbGuard.InvalidPolicy.selector, "policyTimelockSeconds out of range 3600..604800"
-            )
+            abi.encodeWithSelector(ArbGuard.InvalidPolicy.selector, "policyTimelockSeconds out of range 3600..604800")
         );
         guard.registerPolicy(freshProtocol, bad, priceConfig());
     }
@@ -120,9 +116,7 @@ contract ArbGuardTest is Fixture {
     function test_RegisterPolicy_BadPriceConfigReverts() public {
         PriceConfig memory bad = priceConfig();
         bad.twapSeconds = 299;
-        vm.expectRevert(
-            abi.encodeWithSelector(ArbGuard.InvalidPolicy.selector, "twapSeconds out of range 300..86400")
-        );
+        vm.expectRevert(abi.encodeWithSelector(ArbGuard.InvalidPolicy.selector, "twapSeconds out of range 300..86400"));
         guard.registerPolicy(freshProtocol, _policy(), bad);
 
         bad = priceConfig();
@@ -140,11 +134,7 @@ contract ArbGuardTest is Fixture {
         // Not applied yet.
         assertEq(guard.getPolicy(vaultPolicyId).maxOutflowPerBlock, 100 ether);
         // Early execute reverts.
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ArbGuard.TimelockNotElapsed.selector, block.timestamp + 86400
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(ArbGuard.TimelockNotElapsed.selector, block.timestamp + 86400));
         guard.executePolicyUpdate(vaultPolicyId);
         // After the delay it applies.
         vm.warp(block.timestamp + 86400);

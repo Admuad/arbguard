@@ -119,8 +119,7 @@ contract AdapterUnitsTest is Fixture {
     /// @notice The helper's demo defaults carry the spec values: HF floor
     /// 1.25x, drain cap 50%, USD-denominated.
     function test_AdapterPolicyHelper_DemoDefaults() public {
-        Policy memory p =
-            AdapterPolicyHelper.adapterPolicy(200_000 ether, 1_000_000 ether, 5_000_000 ether, 10_000);
+        Policy memory p = AdapterPolicyHelper.adapterPolicy(200_000 ether, 1_000_000 ether, 5_000_000 ether, 10_000);
         assertTrue(p.usdDenominated);
         assertEq(p.minHealthFactorBps, 12500);
         assertEq(p.maxReserveDrainBps, 5000);

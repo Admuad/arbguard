@@ -2,7 +2,14 @@
 pragma solidity 0.8.28;
 
 import {ArbGuard, Policy, PriceConfig} from "../src/ArbGuard.sol";
-import {AaveAdapter, AdapterError, AdapterNotConfigured, IPool, IPoolDataProvider, IAaveOracle} from "../src/AaveAdapter.sol";
+import {
+    AaveAdapter,
+    AdapterError,
+    AdapterNotConfigured,
+    IPool,
+    IPoolDataProvider,
+    IAaveOracle
+} from "../src/AaveAdapter.sol";
 import {AdapterPolicyHelper} from "../script/DeployAdapters.s.sol";
 import {Fixture} from "./Fixture.t.sol";
 import {MockAavePool, MockPoolDataProvider, MockAaveOracle} from "./AdapterMocks.sol";

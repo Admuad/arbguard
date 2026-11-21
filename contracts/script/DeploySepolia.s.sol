@@ -142,16 +142,14 @@ contract DeploySepolia is Script {
         // The staleness guard itself is proven in SepoliaFork.t.sol, where
         // a mock USDC feed completes the pair and the real stale ETH feed
         // forces ORACLE_UNAVAILABLE.
-        d.guard.setOracleConfig(
-            d.poolPolicyId,
-            address(d.weth),
-            OracleConfig({
-                chainlinkFeed: SEPOLIA_ETH_USD,
-                uniswapPool: address(0),
-                feedDecimals: 8,
-                tokenDecimals: 18
-            })
-        );
+        d.guard
+            .setOracleConfig(
+                d.poolPolicyId,
+                address(d.weth),
+                OracleConfig({
+                    chainlinkFeed: SEPOLIA_ETH_USD, uniswapPool: address(0), feedDecimals: 8, tokenDecimals: 18
+                })
+            );
     }
 
     function _seed(Deployment memory d, address deployer) internal {

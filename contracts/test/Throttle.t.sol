@@ -85,8 +85,7 @@ contract ThrottleTest is Fixture {
         guard.throttle(vaultPolicyId, 3600, "throttle test");
         assertEq(uint8(guard.getMode(vaultPolicyId)), uint8(Mode.THROTTLED));
         // 10 ether passes (exactly the effective cap).
-        (bool ok, Reason reason) =
-            guard.simulateCheck(address(guardedVault), _withdraw(10 ether, 1000 ether));
+        (bool ok, Reason reason) = guard.simulateCheck(address(guardedVault), _withdraw(10 ether, 1000 ether));
         assertTrue(ok);
         assertEq(uint8(reason), uint8(Reason.NONE));
         // 11 ether reverts OUTFLOW_PER_BLOCK.
@@ -229,8 +228,7 @@ contract ThrottleTest is Fixture {
         guard.throttle(vaultPolicyId, 3600, "timed throttle");
         assertEq(uint8(guard.getMode(vaultPolicyId)), uint8(Mode.THROTTLED));
         // Before expiry the throttled cap binds.
-        (bool ok, Reason reason) =
-            guard.simulateCheck(address(guardedVault), _withdraw(11 ether, 1000 ether));
+        (bool ok, Reason reason) = guard.simulateCheck(address(guardedVault), _withdraw(11 ether, 1000 ether));
         assertFalse(ok);
         assertEq(uint8(reason), uint8(Reason.OUTFLOW_PER_BLOCK));
         // Warp past throttleUntil: auto-resume to NORMAL, full caps back.
@@ -266,9 +264,7 @@ contract ThrottleTest is Fixture {
     function test_Reset_FromThrottled_Reverts() public {
         vm.prank(keeper);
         guard.throttle(vaultPolicyId, 3600, "throttle");
-        vm.expectRevert(
-            abi.encodeWithSelector(ArbGuard.InvalidPolicy.selector, "policy is throttled, use unthrottle")
-        );
+        vm.expectRevert(abi.encodeWithSelector(ArbGuard.InvalidPolicy.selector, "policy is throttled, use unthrottle"));
         guard.reset(vaultPolicyId);
     }
 
@@ -283,8 +279,7 @@ contract ThrottleTest is Fixture {
         guard.reset(vaultPolicyId);
         assertEq(uint8(guard.getMode(vaultPolicyId)), uint8(Mode.NORMAL));
         // Full caps are back.
-        (bool ok, Reason reason) =
-            guard.simulateCheck(address(guardedVault), _withdraw(100 ether, 10000 ether));
+        (bool ok, Reason reason) = guard.simulateCheck(address(guardedVault), _withdraw(100 ether, 10000 ether));
         assertTrue(ok);
         assertEq(uint8(reason), uint8(Reason.NONE));
     }
@@ -294,8 +289,7 @@ contract ThrottleTest is Fixture {
         // simulateCheck() returns (false, same reason).
         vm.prank(keeper);
         guard.throttle(vaultPolicyId, 3600, "throttle");
-        (bool ok, Reason reason) =
-            guard.simulateCheck(address(guardedVault), _withdraw(11 ether, 1000 ether));
+        (bool ok, Reason reason) = guard.simulateCheck(address(guardedVault), _withdraw(11 ether, 1000 ether));
         assertFalse(ok);
         assertEq(uint8(reason), uint8(Reason.OUTFLOW_PER_BLOCK));
         vm.prank(address(guardedVault));

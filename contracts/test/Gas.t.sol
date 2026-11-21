@@ -8,7 +8,14 @@ import {MockAggregatorV3, MockUniswapV3Pool} from "./Mocks.sol";
 import {AaveAdapter, IPool, IPoolDataProvider, IAaveOracle} from "../src/AaveAdapter.sol";
 import {UniswapV3Adapter, IUniswapV3Factory, INonfungiblePositionManager} from "../src/UniswapV3Adapter.sol";
 import {AdapterPolicyHelper} from "../script/DeployAdapters.s.sol";
-import {MockAavePool, MockPoolDataProvider, MockAaveOracle, MockV3Pool, MockV3Factory, MockNPM} from "./AdapterMocks.sol";
+import {
+    MockAavePool,
+    MockPoolDataProvider,
+    MockAaveOracle,
+    MockV3Pool,
+    MockV3Factory,
+    MockNPM
+} from "./AdapterMocks.sol";
 import {TickMath} from "../src/libraries/UniswapMath.sol";
 
 /// @notice Gas benchmarks (spec §5.3): measure `check()` gas for WITHDRAW
@@ -58,10 +65,7 @@ contract GasTest is Fixture {
     /// @notice Warm gas of one `check()` call: a warm-up call first (its
     /// cold cost is returned as `coldGas`), then the measured call (its
     /// warm cost is returned as `warmGas`). Both are logged by the caller.
-    function _measureCheck(address protocol, Action memory action)
-        internal
-        returns (uint256 coldGas, uint256 warmGas)
-    {
+    function _measureCheck(address protocol, Action memory action) internal returns (uint256 coldGas, uint256 warmGas) {
         vm.prank(protocol);
         guard.check(protocol, action);
         coldGas = vm.lastCallGas().gasTotalUsed;
@@ -198,20 +202,14 @@ contract GasTest is Fixture {
             pid,
             address(asset),
             OracleConfig({
-                chainlinkFeed: address(wethFeed),
-                uniswapPool: address(mockPool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(wethFeed), uniswapPool: address(mockPool), feedDecimals: 8, tokenDecimals: 18
             })
         );
         guard.setOracleConfig(
             pid,
             address(token1),
             OracleConfig({
-                chainlinkFeed: address(usdcFeed),
-                uniswapPool: address(mockPool),
-                feedDecimals: 8,
-                tokenDecimals: 18
+                chainlinkFeed: address(usdcFeed), uniswapPool: address(mockPool), feedDecimals: 8, tokenDecimals: 18
             })
         );
         token1.mint(address(mockPool), 10_000 ether);

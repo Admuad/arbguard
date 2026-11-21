@@ -142,14 +142,20 @@ contract VelocityTest is Fixture {
         // third hour while the hour window is still well under its cap.
         (uint256 pid, address protocol) = _registerCaps(100 ether, 2000 ether, 5000 ether);
         // Hour 1: 20 blocks * 100 = 2000 (hour cap), day total 2000.
-        for (uint256 i = 0; i < 20; i++) _withdrawOnce(protocol, 100 ether);
+        for (uint256 i = 0; i < 20; i++) {
+            _withdrawOnce(protocol, 100 ether);
+        }
         // Hour 2: 20 more blocks, day total 4000.
         _nextHour();
-        for (uint256 i = 0; i < 20; i++) _withdrawOnce(protocol, 100 ether);
+        for (uint256 i = 0; i < 20; i++) {
+            _withdrawOnce(protocol, 100 ether);
+        }
         assertEq(guard.outflowInDay(pid), 4000 ether);
         // Hour 3: after 10 blocks the day total hits 5000 (the cap).
         _nextHour();
-        for (uint256 i = 0; i < 10; i++) _withdrawOnce(protocol, 100 ether);
+        for (uint256 i = 0; i < 10; i++) {
+            _withdrawOnce(protocol, 100 ether);
+        }
         assertEq(guard.outflowInDay(pid), 5000 ether);
         // The 11th block of hour 3: hour total is only 1100 (< 2000), but
         // the day total would be 5100 > 5000 -> OUTFLOW_PER_DAY.
@@ -162,7 +168,9 @@ contract VelocityTest is Fixture {
 
     function test_DayRollover_ResetsWindow() public {
         (uint256 pid, address protocol) = _registerCaps(100 ether, 0, 500 ether);
-        for (uint256 i = 0; i < 5; i++) _withdrawOnce(protocol, 100 ether);
+        for (uint256 i = 0; i < 5; i++) {
+            _withdrawOnce(protocol, 100 ether);
+        }
         // Day cap is hit (500).
         vm.roll(block.number + 1);
         vm.prank(protocol);
@@ -213,7 +221,9 @@ contract VelocityTest is Fixture {
     function test_ZeroHour_OnlyDayEnforced() public {
         // Hour = 0 (unenforced), day = 300: the day cap still binds.
         (, address protocol) = _registerCaps(100 ether, 0, 300 ether);
-        for (uint256 i = 0; i < 3; i++) _withdrawOnce(protocol, 100 ether);
+        for (uint256 i = 0; i < 3; i++) {
+            _withdrawOnce(protocol, 100 ether);
+        }
         vm.roll(block.number + 1);
         vm.prank(protocol);
         vm.expectRevert(abi.encodeWithSelector(ArbGuard.ArbGuardViolation.selector, Reason.OUTFLOW_PER_DAY));
@@ -230,7 +240,9 @@ contract VelocityTest is Fixture {
         (uint256 pid, address protocol) = _registerCaps(100 ether, 2000 ether, 10000 ether);
         vm.prank(keeper);
         guard.throttle(pid, 3600, "throttle test");
-        for (uint256 i = 0; i < 20; i++) _withdrawOnce(protocol, 10 ether);
+        for (uint256 i = 0; i < 20; i++) {
+            _withdrawOnce(protocol, 10 ether);
+        }
         assertEq(guard.outflowInHour(pid), 200 ether);
         vm.roll(block.number + 1);
         vm.prank(protocol);
@@ -241,7 +253,9 @@ contract VelocityTest is Fixture {
     // ------------------------------------------------------------- mirror
     function test_Mirror_OutflowPerHour() public {
         (uint256 pid, address protocol) = _registerCaps(100 ether, 2000 ether, 0);
-        for (uint256 i = 0; i < 20; i++) _withdrawOnce(protocol, 100 ether);
+        for (uint256 i = 0; i < 20; i++) {
+            _withdrawOnce(protocol, 100 ether);
+        }
         // Roll to a fresh block so the per-block window is empty and the
         // hour window is the binding rule.
         vm.roll(block.number + 1);
@@ -258,7 +272,9 @@ contract VelocityTest is Fixture {
 
     function test_Mirror_OutflowPerDay() public {
         (uint256 pid, address protocol) = _registerCaps(100 ether, 0, 500 ether);
-        for (uint256 i = 0; i < 5; i++) _withdrawOnce(protocol, 100 ether);
+        for (uint256 i = 0; i < 5; i++) {
+            _withdrawOnce(protocol, 100 ether);
+        }
         // Roll to a fresh block so the per-block window is empty and the
         // day window is the binding rule.
         vm.roll(block.number + 1);
@@ -276,7 +292,9 @@ contract VelocityTest is Fixture {
         // block-window logic): after warping to a new hour, the accumulated
         // outflow no longer counts.
         (, address protocol) = _registerCaps(100 ether, 2000 ether, 0);
-        for (uint256 i = 0; i < 20; i++) _withdrawOnce(protocol, 100 ether);
+        for (uint256 i = 0; i < 20; i++) {
+            _withdrawOnce(protocol, 100 ether);
+        }
         // Roll to a fresh block so the hour window (not the block window)
         // is the binding rule.
         vm.roll(block.number + 1);
