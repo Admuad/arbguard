@@ -273,3 +273,48 @@ path is what ships).
 
 **Where do I get help?** Open an issue on the repo or ask in the Arbitrum
 Discord `#open-house` channel.
+
+## 9. Adapters (Phase 2) — guard Aave V3 and Uniswap V3 without changing them
+
+If your users interact with Aave V3 or Uniswap V3 directly, you do not
+need to modify those protocols. Deploy the adapter and point your users
+at it instead of the pool: the adapter runs `ArbGuard.check()` first,
+then forwards the call unchanged.
+
+```solidity
+import {AaveAdapter} from "arbguard/src/AaveAdapter.sol";
+import {UniswapV3Adapter} from "arbguard/src/UniswapV3Adapter.sol";
+
+// One policy per adapter (USD 1e18 caps). Register it, then set the
+// oracle configs (Chainlink feeds + the Uniswap pool for the TWAP).
+AaveAdapter aave = new AaveAdapter(guard, pool, dataProvider, aaveOracle, reserves);
+UniswapV3Adapter v3 = new UniswapV3Adapter(guard, factory, npm, aaveOracle);
+```
+
+**User prerequisites (the adapter enforces these, the pool does not):**
+- Aave `borrow`: approve the adapter as a borrow delegate on each
+  variable debt token (`approveDelegation`), or the Pool reverts
+  `InsufficientBorrowAllowance`. The adapter forwards borrowed funds to
+  the caller; the debt is booked to the caller.
+- Aave `withdraw`: approve the adapter on the aToken once (like the
+  underlying approval for `supply`). The adapter pulls the user's
+  aTokens (underlying amount; the aToken divides by the index
+  internally), calls `pool.withdraw`, and sweeps rounding dust back.
+- Uniswap `decreaseLiquidity` / `collect`: approve the adapter on the
+  position NFT (`approve` / `setApprovalForAll`), or the NPM reverts.
+  `mintPosition` needs no approval; the NFT is minted to the caller.
+
+**What the adapter does NOT guard:** `supply` and `repay` are
+intentionally unguarded pass-throughs (they can only improve a health
+factor). `mintPosition` is unguarded (adding liquidity cannot drain).
+Calling the pool directly bypasses the guard entirely — the firewall is
+opt-in, so your frontend must route through the adapter.
+
+**Policies:** adapter policies are USD-denominated
+(`usdDenominated == true`) with a health-factor floor (default 1.25x)
+and a reserve-drain cap (default 50%). Demo policies use raw token
+units; adapter policies must be USD. See `script/DeployAdapters.s.sol`
+for the demo defaults and the deploy script. Adapters are NOT yet
+deployed to any public chain (spec §6 Q1: Aave/Uniswap deployments on
+Arbitrum Sepolia are unverified); the deploy script is ready and must
+not be run against a live chain without Muhammed's explicit go-ahead.

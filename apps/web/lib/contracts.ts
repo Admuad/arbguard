@@ -69,13 +69,21 @@ export const isDeployed =
   CONTRACT_ADDRESSES.mweth !== ZERO_ADDRESS &&
   CONTRACT_ADDRESSES.musdc !== ZERO_ADDRESS;
 
-/** ArbGuard Reason enum (contracts/src/ArbGuard.sol): NONE=0 .. BREAKER_TRIPPED=4. */
+/** ArbGuard Reason enum (contracts/src/ArbGuard.sol): NONE=0 .. RESERVE_DRAIN=12. */
 export const REASON_NAMES = [
   "NONE",
   "OUTFLOW_PER_BLOCK",
+  "OUTFLOW_PER_HOUR",
+  "OUTFLOW_PER_DAY",
   "SINGLE_SHARE",
   "PRICE_DEVIATION",
   "BREAKER_TRIPPED",
+  "ORACLE_STALE",
+  "ORACLE_DISAGREEMENT",
+  "ORACLE_UNAVAILABLE",
+  "SEQUENCER_DOWN",
+  "HEALTH_FACTOR",
+  "RESERVE_DRAIN",
 ] as const;
 
 /** ActionKind enum (contracts/src/ArbGuard.sol): WITHDRAW=0, MINT=1, SWAP=2, BORROW=3. */
@@ -108,6 +116,55 @@ export const ARB_GUARD_ABI = [
   },
   {
     "type": "function",
+    "name": "addKeeper",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "keeper",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "cancelOracleConfigUpdate",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "cancelPolicyUpdate",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "check",
     "inputs": [
       {
@@ -131,6 +188,11 @@ export const ARB_GUARD_ABI = [
             "internalType": "address"
           },
           {
+            "name": "tokenIn",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
             "name": "amountOut",
             "type": "uint256",
             "internalType": "uint256"
@@ -146,12 +208,17 @@ export const ARB_GUARD_ABI = [
             "internalType": "uint256"
           },
           {
-            "name": "twapPrice",
+            "name": "tvl",
             "type": "uint256",
             "internalType": "uint256"
           },
           {
-            "name": "tvl",
+            "name": "healthFactorAfter",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "availableLiquidity",
             "type": "uint256",
             "internalType": "uint256"
           }
@@ -160,6 +227,309 @@ export const ARB_GUARD_ABI = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "executeOracleConfigUpdate",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "executePolicyUpdate",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getKeepers",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getMode",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "enum Mode"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getOracleConfig",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct OracleConfig",
+        "components": [
+          {
+            "name": "chainlinkFeed",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "uniswapPool",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "feedDecimals",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "tokenDecimals",
+            "type": "uint8",
+            "internalType": "uint8"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPendingOracleConfig",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct PendingOracleUpdate",
+        "components": [
+          {
+            "name": "config",
+            "type": "tuple",
+            "internalType": "struct OracleConfig",
+            "components": [
+              {
+                "name": "chainlinkFeed",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "uniswapPool",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "feedDecimals",
+                "type": "uint8",
+                "internalType": "uint8"
+              },
+              {
+                "name": "tokenDecimals",
+                "type": "uint8",
+                "internalType": "uint8"
+              }
+            ]
+          },
+          {
+            "name": "executableAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "proposedAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPendingUpdate",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct PendingUpdate",
+        "components": [
+          {
+            "name": "policy",
+            "type": "tuple",
+            "internalType": "struct Policy",
+            "components": [
+              {
+                "name": "maxOutflowPerBlock",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxOutflowPerHour",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxOutflowPerDay",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxSingleShareBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "maxPriceDeviationBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "throttleBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "cooldownSeconds",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "policyTimelockSeconds",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "enabled",
+                "type": "bool",
+                "internalType": "bool"
+              },
+              {
+                "name": "usdDenominated",
+                "type": "bool",
+                "internalType": "bool"
+              },
+              {
+                "name": "minHealthFactorBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "maxReserveDrainBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              }
+            ]
+          },
+          {
+            "name": "price",
+            "type": "tuple",
+            "internalType": "struct PriceConfig",
+            "components": [
+              {
+                "name": "twapSeconds",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "maxOracleDeviationBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "chainlinkStaleAfter",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "sequencerFeed",
+                "type": "address",
+                "internalType": "address"
+              }
+            ]
+          },
+          {
+            "name": "executableAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "proposedAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -183,6 +553,16 @@ export const ARB_GUARD_ABI = [
             "internalType": "uint256"
           },
           {
+            "name": "maxOutflowPerHour",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxOutflowPerDay",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
             "name": "maxSingleShareBps",
             "type": "uint16",
             "internalType": "uint16"
@@ -193,19 +573,39 @@ export const ARB_GUARD_ABI = [
             "internalType": "uint16"
           },
           {
+            "name": "throttleBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
             "name": "cooldownSeconds",
             "type": "uint32",
             "internalType": "uint32"
           },
           {
-            "name": "keeper",
-            "type": "address",
-            "internalType": "address"
+            "name": "policyTimelockSeconds",
+            "type": "uint32",
+            "internalType": "uint32"
           },
           {
             "name": "enabled",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "usdDenominated",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "minHealthFactorBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "maxReserveDrainBps",
+            "type": "uint16",
+            "internalType": "uint16"
           }
         ]
       }
@@ -233,6 +633,47 @@ export const ARB_GUARD_ABI = [
   },
   {
     "type": "function",
+    "name": "getPriceConfig",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct PriceConfig",
+        "components": [
+          {
+            "name": "twapSeconds",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "maxOracleDeviationBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "chainlinkStaleAfter",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "sequencerFeed",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getProtocol",
     "inputs": [
       {
@@ -246,6 +687,83 @@ export const ARB_GUARD_ABI = [
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getReferencePrice",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "tokenIn",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "tokenOut",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "price1e18",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "source",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isKeeper",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "modeOf",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "enum Mode"
       }
     ],
     "stateMutability": "view"
@@ -271,7 +789,83 @@ export const ARB_GUARD_ABI = [
   },
   {
     "type": "function",
+    "name": "outflowDay",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "outflowHour",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "outflowInBlock",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "outflowInDay",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "outflowInHour",
     "inputs": [
       {
         "name": "",
@@ -335,6 +929,113 @@ export const ARB_GUARD_ABI = [
   },
   {
     "type": "function",
+    "name": "proposePolicyUpdate",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "newPolicy",
+        "type": "tuple",
+        "internalType": "struct Policy",
+        "components": [
+          {
+            "name": "maxOutflowPerBlock",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxOutflowPerHour",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxOutflowPerDay",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxSingleShareBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "maxPriceDeviationBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "throttleBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "cooldownSeconds",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "policyTimelockSeconds",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "enabled",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "usdDenominated",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "minHealthFactorBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "maxReserveDrainBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          }
+        ]
+      },
+      {
+        "name": "newPrice",
+        "type": "tuple",
+        "internalType": "struct PriceConfig",
+        "components": [
+          {
+            "name": "twapSeconds",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "maxOracleDeviationBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "chainlinkStaleAfter",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "sequencerFeed",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "registerPolicy",
     "inputs": [
       {
@@ -353,6 +1054,16 @@ export const ARB_GUARD_ABI = [
             "internalType": "uint256"
           },
           {
+            "name": "maxOutflowPerHour",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxOutflowPerDay",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
             "name": "maxSingleShareBps",
             "type": "uint16",
             "internalType": "uint16"
@@ -363,19 +1074,66 @@ export const ARB_GUARD_ABI = [
             "internalType": "uint16"
           },
           {
+            "name": "throttleBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
             "name": "cooldownSeconds",
             "type": "uint32",
             "internalType": "uint32"
           },
           {
-            "name": "keeper",
-            "type": "address",
-            "internalType": "address"
+            "name": "policyTimelockSeconds",
+            "type": "uint32",
+            "internalType": "uint32"
           },
           {
             "name": "enabled",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "usdDenominated",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "minHealthFactorBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "maxReserveDrainBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          }
+        ]
+      },
+      {
+        "name": "priceConfig",
+        "type": "tuple",
+        "internalType": "struct PriceConfig",
+        "components": [
+          {
+            "name": "twapSeconds",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "maxOracleDeviationBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "chainlinkStaleAfter",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "sequencerFeed",
+            "type": "address",
+            "internalType": "address"
           }
         ]
       }
@@ -387,6 +1145,42 @@ export const ARB_GUARD_ABI = [
         "internalType": "uint256"
       }
     ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "removeKeeper",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "keeper",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "removeOracleConfig",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
@@ -429,6 +1223,91 @@ export const ARB_GUARD_ABI = [
   },
   {
     "type": "function",
+    "name": "setOracleConfig",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "cfg",
+        "type": "tuple",
+        "internalType": "struct OracleConfig",
+        "components": [
+          {
+            "name": "chainlinkFeed",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "uniswapPool",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "feedDecimals",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "tokenDecimals",
+            "type": "uint8",
+            "internalType": "uint8"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setPriceConfig",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "newPrice",
+        "type": "tuple",
+        "internalType": "struct PriceConfig",
+        "components": [
+          {
+            "name": "twapSeconds",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "maxOracleDeviationBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "chainlinkStaleAfter",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "sequencerFeed",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "simulateCheck",
     "inputs": [
       {
@@ -452,6 +1331,11 @@ export const ARB_GUARD_ABI = [
             "internalType": "address"
           },
           {
+            "name": "tokenIn",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
             "name": "amountOut",
             "type": "uint256",
             "internalType": "uint256"
@@ -467,12 +1351,17 @@ export const ARB_GUARD_ABI = [
             "internalType": "uint256"
           },
           {
-            "name": "twapPrice",
+            "name": "tvl",
             "type": "uint256",
             "internalType": "uint256"
           },
           {
-            "name": "tvl",
+            "name": "healthFactorAfter",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "availableLiquidity",
             "type": "uint256",
             "internalType": "uint256"
           }
@@ -489,6 +1378,48 @@ export const ARB_GUARD_ABI = [
         "name": "reason",
         "type": "uint8",
         "internalType": "enum Reason"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "throttle",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "durationSeconds",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "evidence",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "throttleUntil",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -526,49 +1457,12 @@ export const ARB_GUARD_ABI = [
   },
   {
     "type": "function",
-    "name": "updatePolicy",
+    "name": "unthrottle",
     "inputs": [
       {
         "name": "policyId",
         "type": "uint256",
         "internalType": "uint256"
-      },
-      {
-        "name": "policy",
-        "type": "tuple",
-        "internalType": "struct Policy",
-        "components": [
-          {
-            "name": "maxOutflowPerBlock",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "maxSingleShareBps",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
-            "name": "maxPriceDeviationBps",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
-            "name": "cooldownSeconds",
-            "type": "uint32",
-            "internalType": "uint32"
-          },
-          {
-            "name": "keeper",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "enabled",
-            "type": "bool",
-            "internalType": "bool"
-          }
-        ]
       }
     ],
     "outputs": [],
@@ -657,6 +1551,157 @@ export const ARB_GUARD_ABI = [
   },
   {
     "type": "event",
+    "name": "KeeperAdded",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "keeper",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "KeeperRemoved",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "keeper",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OracleConfigRemoved",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OracleConfigSet",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "feed",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "pool",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OracleConfigUpdateCancelled",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OracleConfigUpdateExecuted",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OracleConfigUpdateProposed",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "executableAt",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "OwnershipTransferStarted",
     "inputs": [
       {
@@ -727,12 +1772,51 @@ export const ARB_GUARD_ABI = [
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PolicyUpdateCancelled",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PolicyUpdateExecuted",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PolicyUpdateProposed",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
       },
       {
-        "name": "keeper",
-        "type": "address",
+        "name": "executableAt",
+        "type": "uint256",
         "indexed": false,
-        "internalType": "address"
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -755,6 +1839,68 @@ export const ARB_GUARD_ABI = [
       }
     ],
     "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PriceConfigUpdated",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ThrottleCleared",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ThrottleSet",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "tripper",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "throttleUntil",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "AlreadyThrottled",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",
@@ -791,6 +1937,33 @@ export const ARB_GUARD_ABI = [
   },
   {
     "type": "error",
+    "name": "NoPendingOracleUpdate",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "NoPendingUpdate",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "NotKeeperOrOwner",
     "inputs": [
       {
@@ -818,6 +1991,17 @@ export const ARB_GUARD_ABI = [
   },
   {
     "type": "error",
+    "name": "OracleConfigInvalid",
+    "inputs": [
+      {
+        "name": "reason",
+        "type": "string",
+        "internalType": "string"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "OwnableInvalidOwner",
     "inputs": [
       {
@@ -840,10 +2024,81 @@ export const ARB_GUARD_ABI = [
   },
   {
     "type": "error",
+    "name": "PendingOracleUpdateExists",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "PendingUpdateExists",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "PolicyAlreadyRegistered",
     "inputs": [
       {
         "name": "protocol",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ProposalExpired",
+    "inputs": [
+      {
+        "name": "proposedAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "TimelockNotElapsed",
+    "inputs": [
+      {
+        "name": "executableAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "TooManyKeepers",
+    "inputs": [
+      {
+        "name": "policyId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "UnknownOracle",
+    "inputs": [
+      {
+        "name": "token",
         "type": "address",
         "internalType": "address"
       }
@@ -1119,45 +2374,6 @@ export const POOL_ABI = [
         "internalType": "uint256"
       }
     ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "lastPrice01",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "lastPrice10",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "lastPriceBlock",
-    "inputs": [],
     "outputs": [
       {
         "name": "",
@@ -1554,6 +2770,24 @@ export const TOKEN_ABI = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "burn",
+    "inputs": [
+      {
+        "name": "from",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",

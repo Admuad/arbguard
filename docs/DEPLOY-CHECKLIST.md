@@ -138,3 +138,39 @@ of ETH (his call; Sepolia-only is acceptable if he says no).
   with `git status` before the first push.
 - Never run the deploy scripts against a public chain without Muhammed's
   explicit go-ahead on that exact step.
+
+## Re-verification (2026-11-19, latest Sepolia fork)
+
+Re-ran the same script against a fresh local fork of live Sepolia with the
+correct Anvil #0 key: `ONCHAIN EXECUTION COMPLETE & SUCCESSFUL`, 29/29
+transactions, all status 1. Live-state checks passed: owner = deployer,
+policy 0 = 100 ether / 5000 / 500 / 3600 / keeper / true, GuardedVault
+mWETH = 1900 ether. Deployed addresses this run (fork-only, not real):
+ArbGuard `0x2bcc4171591ceb29b410313cd984554ad85a99c7`.
+
+Note: an earlier re-run the same day failed every send with "allowance: 0"
+because the deployer key used had a one-character typo (`...f3ff80` instead
+of `...f2ff80`), deriving an unfunded address. Lesson recorded in AGENTS.md:
+never hand-type a key; derive it and check `cast wallet address` first.
+
+## Adapter deployment (Phase 2 — PENDING, not deployed)
+
+- No adapter is deployed to any public chain yet. The deploy script
+  `contracts/script/DeployAdapters.s.sol` is written and deploys the
+  guard + both adapters, derives the Aave Pool/DataProvider/Oracle from
+  the PoolAddressesProvider and the reserve allowlist from
+  `Pool.getReservesList()`, and registers the adapter policies (Aave:
+  $200k/$1M/$5M caps, HF 1.25x, drain 50%; V3: $50k/$500k/$2M caps,
+  single-share 50%, drain 50%, HF off, real 0.05% pool + sequencer).
+- **Do NOT run it against any live chain yet (spec §6 Q1):** Aave and
+  Uniswap deployments on Arbitrum Sepolia are NOT verified. Verify them
+  first, then deploy the adapters to Sepolia and record the addresses
+  here before any Arbitrum One deployment.
+- When deployed, record here: ArbGuard, AaveAdapter, UniswapV3Adapter
+  addresses, the policy IDs, and the oracle-config transactions.
+- Sepolia Phase 1 addresses (live, 20 Nov 2026 — see
+  `SEPOLIA-DEPLOYMENT.md`): ArbGuard
+  `0x9D733954c71920a51291d730fc48422d94d5C306`, GuardedVault
+  `0xEa182E47829D76569dc50CcADD2bFafe462A0E3D`, GuardedPool
+  `0x3b1714FE7583789C10528dD43Dbb18729269679E`, Attacker
+  `0x590180b5Ab993A1Af5bBDa12Ad430a442091B4C1`.

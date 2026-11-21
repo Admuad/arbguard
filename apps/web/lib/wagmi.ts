@@ -23,7 +23,12 @@ export const wagmiConfig = getDefaultConfig({
   chains: [localhost, arbitrumSepolia, arbitrum],
   transports: {
     [localhost.id]: http(RPC_URL),
-    [arbitrumSepolia.id]: http(),
+    // Sepolia reads go to the configured RPC (NEXT_PUBLIC_RPC_URL) when
+    // set — the dashboard's live reads depend on this. Falls back to the
+    // chain default when no RPC is configured.
+    [arbitrumSepolia.id]: process.env.NEXT_PUBLIC_RPC_URL
+      ? http(process.env.NEXT_PUBLIC_RPC_URL)
+      : http(),
     [arbitrum.id]: http(),
   },
   ssr: true,

@@ -8,21 +8,15 @@ import {IArbGuard, Action, ActionKind} from "./ArbGuard.sol";
 
 /// @notice Minimal constant-product AMM (x * y = k, NO fee) over two ERC20s.
 /// `swap()` computes the execution price and passes kind SWAP with `price`
-/// and `twapPrice` to the guard BEFORE any reserve moves, so a price-push
+/// and `tokenIn` to the guard BEFORE any reserve moves, so a price-push
 /// swap reverts atomically.
 ///
-/// TWAP SIMPLIFICATION (v1, deliberate): there is no real TWAP oracle.
-/// `lastPrice01` / `lastPrice10` store the last execution price per
-/// direction (1e18-scaled, tokenOut per tokenIn), updated AT MOST ONCE PER
-/// BLOCK — the first successful swap of a new block refreshes the stored
-/// price; later swaps in the same block are checked against the stored
-/// price. That makes the reference lag by up to one block and makes it
-/// gameable by a patient attacker across blocks, which is exactly why a
-/// real deployment must plug in a proper TWAP (e.g. Uniswap V2 cumulative
-/// prices or a Chainlink feed) as `twapPrice`. For the v1 demo the
-/// once-per-block stored price is enough to show the deviation rule
-/// firing on a single-block price push. Do NOT treat it as a production
-/// oracle.
+/// Phase 1: the guard resolves the reference price itself from on-chain
+/// oracles (Chainlink + Uniswap V3 TWAP); the pool no longer keeps a
+/// reference price. The v1 once-per-block stored price (`lastPrice01/10`)
+/// is deleted — it was a gameable TWAP proxy, and the guard now owns the
+/// reference. The pool's own price display, if the frontend needs one,
+/// reads the guard's `getReferencePrice` instead.
 ///
 /// The guard is immutable; `address(0)` means unguarded (same pattern as
 /// GuardedVault) so the same contract serves the guarded pool and the
@@ -36,13 +30,6 @@ contract GuardedPool is ReentrancyGuard {
 
     uint256 public reserve0;
     uint256 public reserve1;
-
-    /// @notice Last execution price token1-per-token0, 1e18-scaled.
-    uint256 public lastPrice01;
-    /// @notice Last execution price token0-per-token1, 1e18-scaled.
-    uint256 public lastPrice10;
-    /// @notice Block the stored prices were last refreshed in.
-    uint256 public lastPriceBlock;
 
     error InvalidToken(address token);
     error ZeroAmount();
@@ -58,19 +45,13 @@ contract GuardedPool is ReentrancyGuard {
         arbGuard = _arbGuard;
     }
 
-    /// @notice Seed (or top up) the pool. The first call also seeds the
-    /// TWAP-proxy prices from the initial reserve ratio.
+    /// @notice Seed (or top up) the pool.
     function addLiquidity(uint256 amount0, uint256 amount1) external nonReentrant {
         if (amount0 == 0 || amount1 == 0) revert ZeroAmount();
         token0.safeTransferFrom(msg.sender, address(this), amount0);
         token1.safeTransferFrom(msg.sender, address(this), amount1);
         reserve0 += amount0;
         reserve1 += amount1;
-        if (lastPrice01 == 0) {
-            lastPrice01 = (reserve1 * 1e18) / reserve0;
-            lastPrice10 = (reserve0 * 1e18) / reserve1;
-            lastPriceBlock = block.number;
-        }
         emit LiquidityAdded(msg.sender, amount0, amount1);
     }
 
@@ -96,7 +77,6 @@ contract GuardedPool is ReentrancyGuard {
         amountOut = (amountIn * reserveOut) / (reserveIn + amountIn);
         if (amountOut < minAmountOut) revert Slippage(amountOut, minAmountOut);
         uint256 price = (amountOut * 1e18) / amountIn;
-        uint256 twapPrice = zeroForOne ? lastPrice01 : lastPrice10;
 
         if (address(arbGuard) != address(0)) {
             arbGuard.check(
@@ -104,11 +84,13 @@ contract GuardedPool is ReentrancyGuard {
                 Action({
                     kind: ActionKind.SWAP,
                     token: address(tokenOut),
+                    tokenIn: tokenIn,
                     amountOut: amountOut,
                     amountIn: amountIn,
                     price: price,
-                    twapPrice: twapPrice,
-                    tvl: reserveOut
+                    tvl: reserveOut,
+                    healthFactorAfter: 0,
+                    availableLiquidity: 0
                 })
             );
         }
@@ -119,13 +101,6 @@ contract GuardedPool is ReentrancyGuard {
         } else {
             reserve1 += amountIn;
             reserve0 -= amountOut;
-        }
-
-        // TWAP proxy: refresh at most once per block (see header note).
-        if (block.number != lastPriceBlock) {
-            if (zeroForOne) lastPrice01 = price;
-            else lastPrice10 = price;
-            lastPriceBlock = block.number;
         }
 
         if (zeroForOne) {

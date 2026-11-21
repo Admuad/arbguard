@@ -54,11 +54,13 @@ contract GuardedVault is ReentrancyGuard {
                 Action({
                     kind: ActionKind.WITHDRAW,
                     token: address(asset),
+                    tokenIn: address(0),
                     amountOut: amount,
                     amountIn: 0,
                     price: 0,
-                    twapPrice: 0,
-                    tvl: asset.balanceOf(address(this))
+                    tvl: asset.balanceOf(address(this)),
+                    healthFactorAfter: 0,
+                    availableLiquidity: 0
                 })
             );
         }

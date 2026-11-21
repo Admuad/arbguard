@@ -78,13 +78,17 @@ struct Policy {
     uint256 cooldownSeconds;      // how long a tripped breaker stays paused
     address keeper;               // address allowed to trip the breaker (plus the owner)
     bool    enabled;
+    // Phase 2 additions (see "Rules 5-6" below):
+    bool    usdDenominated;       // true: caps/amounts are USD 1e18 (adapter policies); false: raw token units
+    uint16  minHealthFactorBps;   // min post-action health factor, bps of 1e18 (0 = rule off; else 10000-50000)
+    uint16  maxReserveDrainBps;   // max share of available liquidity one action may take, bps (0 = off; else 1-10000)
 }
 ```
 
-`check()` enforces three rules in v1. **Any one failing reverts the whole
+`check()` enforces five rules in v2 (Phase 2). **Any one failing reverts the whole
 transaction** with `ArbGuardViolation(reason)` — nothing moves, no partial
-state change survives. (A fourth rule, reserve conservation, is specified
-below as Rule 4 but is **not enforced in v1** — see the note there.)
+state change survives. (A sixth rule, reserve conservation, is specified
+below as Rule 4 but is **not enforced** — see the note there.)
 
 ### Rule 1 — Max outflow per block
 
@@ -141,9 +145,73 @@ carries no reserve/balance fields and `Reason` has no reserve-mismatch
 variant. Enforcing this rule needs a post-action confirm step (a second
 call after the state change, or the protocol passing expected balances
 into `check()`), which is a v2 design item — not a one-line addition.
-The README, the threat model below, and the submission all say "three
+The README, the threat model below, and the submission all say "five
 enforced invariants" until that step exists. Do not cite Rule 4 as a
 shipped protection.
+
+### Rule 5 — Health factor floor (Phase 2, BORROW/WITHDRAW only)
+
+For borrows and withdrawals, the projected post-action health factor must
+stay at or above `minHealthFactorBps` (1e18-scaled; the floor is
+`minHealthFactorBps * 1e14`). A health factor of `type(uint256).max`
+means "no debt" and always passes.
+
+```
+healthFactorAfter < minHealthFactorBps * 1e14  →  HEALTH_FACTOR
+```
+
+Stops a borrow or collateral withdrawal that would leave the account
+under-collateralised. Swaps ignore this rule (a Uniswap position carries
+no debt). The adapter computes the projected factor from the Pool's own
+`getUserAccountData` plus the action's amounts; the guard only enforces
+the floor. `minHealthFactorBps == 0` disables the rule.
+
+### Rule 6 — Reserve drain cap (Phase 2, BORROW/WITHDRAW/SWAP)
+
+A single action must not take more than `maxReserveDrainBps` of the
+reserve's available liquidity.
+
+```
+amountOut * 10_000 > availableLiquidity * maxReserveDrainBps  →  RESERVE_DRAIN
+```
+
+Stops one action from emptying a reserve even when the per-block outflow
+cap alone would allow it. `availableLiquidity` is the reserve's real
+balance (the adapter reads `balanceOf(pool)` for Aave, the pool's token
+balance for V3) — not a formula, after the Phase 2 finding that the
+spec's `totalAToken − totalStableDebt − totalVariableDebt` formula
+overstates Aave's available liquidity ~400x. `maxReserveDrainBps == 0`
+disables the rule.
+
+### Check order (Phase 2, spec §3.4)
+
+caller → policy exists → sequencer (SWAP only) → enabled/paused →
+outflow windows → single share → health factor → reserve drain → price
+(swaps only). `simulateCheck` mirrors `check()` via the shared
+`_evaluateInvariants`, so the two cannot drift.
+
+## Adapter trust boundary (Phase 2)
+
+The adapters (`AaveAdapter`, `UniswapV3Adapter`) are thin, stateless
+pass-throughs: the user calls the adapter instead of the pool, the adapter
+runs `ArbGuard.check()` first, then forwards the call unchanged. The
+adapter holds no funds between calls (it forwards borrowed/withdrawn
+tokens to the caller in the same transaction and sweeps rounding dust
+back). aTokens and position NFTs go to the user, never the adapter.
+
+The guard is the only trust anchor: it is the sole caller the adapters
+obey for `check()`, and a policy is registered per adapter (one policy
+per adapter, not per reserve — spec §6 Q2). Bypassing the adapter
+(calling the pool directly) means the guard does not apply; the firewall
+is opt-in. The AaveOracle is trusted for USD pricing in the adapter hot
+path (spec §6 Q3); the guard's own reference cross-checks Chainlink
+against the Uniswap TWAP, and the fork test pins AaveOracle vs Chainlink
+within 1% for both assets.
+
+The "real TWAP source" open question from Phase 1 is closed: the guard
+reads the TWAP from the pool itself via `observe()` and cross-checks it
+against Chainlink, with the 200 bps disagreement rule. The adapter
+computes execution prices in-adapter (no Quoter call).
 
 ## How `check()` is called
 

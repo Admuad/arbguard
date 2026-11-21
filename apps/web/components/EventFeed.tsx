@@ -13,6 +13,7 @@ import {
   POOL_ABI,
   REASON_NAMES,
   TOKEN_ABI,
+  ZERO_ADDRESS,
   isDeployed,
   type BlockedAttempt,
 } from "@/lib/contracts";
@@ -162,6 +163,11 @@ export function EventFeed() {
             functionName: "balanceOf",
             args: [CONTRACT_ADDRESSES.guardedVault],
           });
+          // Drain 900 mWETH from the guarded vault: kind WITHDRAW, token
+          // mWETH, amountOut 900, tvl = the vault's live mWETH balance.
+          // Phase 2 Action shape: tokenIn / healthFactorAfter /
+          // availableLiquidity (0 = not provided), no twapPrice — the guard
+          // reads the TWAP itself from the oracle config.
           const [ok, reason] = await publicClient.readContract({
             address: CONTRACT_ADDRESSES.arbGuard,
             abi: ARB_GUARD_ABI,
@@ -171,11 +177,13 @@ export function EventFeed() {
               {
                 kind: 0,
                 token: CONTRACT_ADDRESSES.mweth,
+                tokenIn: ZERO_ADDRESS,
                 amountOut: 900n * 10n ** 18n,
                 amountIn: 0n,
                 price: 0n,
-                twapPrice: 0n,
                 tvl,
+                healthFactorAfter: 0n,
+                availableLiquidity: 0n,
               },
             ],
           });
@@ -184,20 +192,16 @@ export function EventFeed() {
           );
         } else {
           // Swap 1000 mWETH on the guarded pool: kind SWAP, token = tokenOut
-          // (mUSDC), amountOut from getAmountOut, price = execution price,
-          // twapPrice = the pool's stored reference, tvl = reserveOut.
-          const [amountOut, twapPrice, reserveOut] = await Promise.all([
+          // (mUSDC), tokenIn = mWETH, amountOut from getAmountOut, price =
+          // execution price, tvl / availableLiquidity = reserveOut. The
+          // guard reads the TWAP itself from the oracle config (the pool no
+          // longer stores lastPrice01).
+          const [amountOut, reserveOut] = await Promise.all([
             publicClient.readContract({
               address: CONTRACT_ADDRESSES.guardedPool,
               abi: POOL_ABI,
               functionName: "getAmountOut",
               args: [CONTRACT_ADDRESSES.mweth, 1000n * 10n ** 18n],
-            }),
-            publicClient.readContract({
-              address: CONTRACT_ADDRESSES.guardedPool,
-              abi: POOL_ABI,
-              functionName: "lastPrice01",
-              args: [],
             }),
             publicClient.readContract({
               address: CONTRACT_ADDRESSES.guardedPool,
@@ -216,16 +220,18 @@ export function EventFeed() {
               {
                 kind: 2,
                 token: CONTRACT_ADDRESSES.musdc,
+                tokenIn: CONTRACT_ADDRESSES.mweth,
                 amountOut,
                 amountIn: 1000n * 10n ** 18n,
                 price,
-                twapPrice,
                 tvl: reserveOut,
+                healthFactorAfter: 0n,
+                availableLiquidity: reserveOut,
               },
             ],
           });
           setPreview(
-            `Swap 1000 mWETH on guarded pool (→ ${formatEther(amountOut)} mUSDC, execution price ${formatEther(price)}, TWAP ${formatEther(twapPrice)}) → ok: ${ok}, reason: ${REASON_NAMES[reason]}`,
+            `Swap 1000 mWETH on guarded pool (→ ${formatEther(amountOut)} mUSDC, execution price ${formatEther(price)}) → ok: ${ok}, reason: ${REASON_NAMES[reason]}`,
           );
         }
       } catch (err) {

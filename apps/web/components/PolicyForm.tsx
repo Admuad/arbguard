@@ -8,6 +8,14 @@ import { isDeployed, CONTRACT_ADDRESSES, ARB_GUARD_ABI, ZERO_ADDRESS } from "@/l
  * Create-policy form. Sliders for the four limits; submits registerPolicy.
  * Until contracts are deployed (isDeployed === false) the form shows a
  * preview of the transaction that would be sent instead of submitting.
+ *
+ * Phase 2 shape: registerPolicy(protocol, Policy, PriceConfig). The Policy
+ * has 12 fields (hour/day windows, throttleBps, timelock, health-factor /
+ * reserve-drain fields); hour/day default to 0 (window unenforced) and the
+ * Phase 2 fields default to off. PriceConfig uses the contract defaults
+ * (twap 1800s, 200 bps oracle deviation, 7200s staleness, no sequencer
+ * feed). The keeper is NOT part of registration any more — the owner adds
+ * keepers with addKeeper(policyId, keeper) after registering.
  */
 export function PolicyForm() {
   const { isConnected } = useAccount();
@@ -35,12 +43,27 @@ export function PolicyForm() {
         protocol as `0x${string}`,
         {
           maxOutflowPerBlock: BigInt(maxOutflowPerBlock) * 10n ** 18n,
+          // Hour/day windows unenforced (0) unless set later via a
+          // timelocked policy update; throttle 10%, timelock 24h; the
+          // Phase 2 health-factor / reserve-drain rules are off (0).
+          maxOutflowPerHour: 0n,
+          maxOutflowPerDay: 0n,
           // uint16/uint16/uint32 in ArbGuard.sol — viem expects numbers, not bigint.
           maxSingleShareBps,
           maxPriceDeviationBps,
+          throttleBps: 1000,
           cooldownSeconds,
-          keeper: (keeper === "" ? ZERO_ADDRESS : keeper) as `0x${string}`,
+          policyTimelockSeconds: 86400,
           enabled: true,
+          usdDenominated: false,
+          minHealthFactorBps: 0,
+          maxReserveDrainBps: 0,
+        },
+        {
+          twapSeconds: 1800,
+          maxOracleDeviationBps: 200,
+          chainlinkStaleAfter: 7200,
+          sequencerFeed: ZERO_ADDRESS,
         },
       ],
     });
@@ -84,7 +107,10 @@ export function PolicyForm() {
 
       <div>
         <label className="mb-1 block text-sm font-medium">
-          Keeper address <span className="text-gray-500">(optional — defaults to zero address)</span>
+          Keeper address{" "}
+          <span className="text-gray-500">
+            (optional — added after registration with addKeeper, owner-only)
+          </span>
         </label>
         <input
           value={keeper}
@@ -163,10 +189,17 @@ export function PolicyForm() {
           <p>arbGuard: {CONTRACT_ADDRESSES.arbGuard} (TBD)</p>
           <p>protocol: {protocol}</p>
           <p>maxOutflowPerBlock: {maxOutflowPerBlock} ETH</p>
+          <p>maxOutflowPerHour: 0 (window unenforced)</p>
+          <p>maxOutflowPerDay: 0 (window unenforced)</p>
           <p>maxSingleShareBps: {maxSingleShareBps} bps</p>
           <p>maxPriceDeviationBps: {maxPriceDeviationBps} bps</p>
+          <p>throttleBps: 1000 (10% effective caps when throttled)</p>
           <p>cooldownSeconds: {cooldownSeconds}s</p>
-          <p>keeper: {keeper === "" ? ZERO_ADDRESS : keeper}</p>
+          <p>policyTimelockSeconds: 86400s (24h)</p>
+          <p>
+            keeper: {keeper === "" ? ZERO_ADDRESS : keeper} (added afterwards
+            via addKeeper — not part of registerPolicy)
+          </p>
         </div>
       )}
     </form>

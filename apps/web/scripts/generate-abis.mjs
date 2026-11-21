@@ -99,13 +99,21 @@ export const isDeployed =
   CONTRACT_ADDRESSES.mweth !== ZERO_ADDRESS &&
   CONTRACT_ADDRESSES.musdc !== ZERO_ADDRESS;
 
-/** ArbGuard Reason enum (contracts/src/ArbGuard.sol): NONE=0 .. BREAKER_TRIPPED=4. */
+/** ArbGuard Reason enum (contracts/src/ArbGuard.sol): NONE=0 .. RESERVE_DRAIN=12. */
 export const REASON_NAMES = [
   "NONE",
   "OUTFLOW_PER_BLOCK",
+  "OUTFLOW_PER_HOUR",
+  "OUTFLOW_PER_DAY",
   "SINGLE_SHARE",
   "PRICE_DEVIATION",
   "BREAKER_TRIPPED",
+  "ORACLE_STALE",
+  "ORACLE_DISAGREEMENT",
+  "ORACLE_UNAVAILABLE",
+  "SEQUENCER_DOWN",
+  "HEALTH_FACTOR",
+  "RESERVE_DRAIN",
 ] as const;
 
 /** ActionKind enum (contracts/src/ArbGuard.sol): WITHDRAW=0, MINT=1, SWAP=2, BORROW=3. */

@@ -21,6 +21,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 🛡️ Arb<span className="text-accent">Guard</span>
               </Link>
               <nav className="flex items-center gap-4 text-sm">
+                <Link href="/dashboard" className="hover:text-accent">
+                  Dashboard
+                </Link>
                 <Link href="/policies" className="hover:text-accent">
                   Policies
                 </Link>
@@ -39,9 +42,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </header>
           <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
           <footer className="border-t border-edge py-6 text-center text-xs text-gray-500">
-            ArbGuard — MIT, © Muhammed Adediran 2026. Local Anvil demo
-            ready; Arbitrum Sepolia deployment pending. No fake addresses, no
-            fake stats.
+            ArbGuard — MIT, © Muhammed Adediran 2026. Live on Arbitrum
+            Sepolia — see the{" "}
+            <Link href="/dashboard" className="text-accent hover:underline">
+              dashboard
+            </Link>
+            . No fake addresses, no fake stats.
           </footer>
         </Providers>
       </body>

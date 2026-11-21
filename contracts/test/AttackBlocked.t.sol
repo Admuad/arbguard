@@ -46,13 +46,19 @@ contract AttackBlockedTest is Fixture {
         GuardedVault vault = new GuardedVault(asset, guard);
         Policy memory policy = Policy({
             maxOutflowPerBlock: 10_000 ether,
+            maxOutflowPerHour: 0,
+            maxOutflowPerDay: 0,
             maxSingleShareBps: 1000,
             maxPriceDeviationBps: 500,
+            throttleBps: 1000,
             cooldownSeconds: 3600,
-            keeper: keeper,
-            enabled: true
+            policyTimelockSeconds: 86400,
+            enabled: true,
+            usdDenominated: false,
+            minHealthFactorBps: 0,
+            maxReserveDrainBps: 0
         });
-        guard.registerPolicy(address(vault), policy);
+        guard.registerPolicy(address(vault), policy, priceConfig());
         vm.startPrank(victim);
         asset.approve(address(vault), type(uint256).max);
         vault.deposit(1900 ether);
@@ -91,14 +97,16 @@ contract AttackBlockedTest is Fixture {
 
     function test_SimulateCheck_PredictsBlockedSwap() public {
         // The simulator sees the price-push coming before any tx is sent.
+        // The fixture's mock oracles give a 1.0 reference, so a swap at
+        // 0.5 is a 50% deviation, far over the 5% cap.
         (bool ok, Reason reason) = guard.simulateCheck(
-            address(guardedPool), _swapAction(1000 ether, 500 ether, 0.5 ether, 1 ether, 1000 ether)
+            address(guardedPool), _swapAction(1000 ether, 500 ether, 0.5 ether, 1000 ether)
         );
         assertFalse(ok);
         assertEq(uint8(reason), uint8(Reason.PRICE_DEVIATION));
     }
 
-    function _swapAction(uint256 amountIn, uint256 amountOut, uint256 price, uint256 twap, uint256 tvl)
+    function _swapAction(uint256 amountIn, uint256 amountOut, uint256 price, uint256 tvl)
         internal
         view
         returns (Action memory)
@@ -106,11 +114,13 @@ contract AttackBlockedTest is Fixture {
         return Action({
             kind: ActionKind.SWAP,
             token: address(token1),
+            tokenIn: address(asset),
             amountOut: amountOut,
             amountIn: amountIn,
             price: price,
-            twapPrice: twap,
-            tvl: tvl
+            tvl: tvl,
+            healthFactorAfter: 0,
+            availableLiquidity: 0
         });
     }
 }

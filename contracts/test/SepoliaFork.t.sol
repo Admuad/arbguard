@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {ArbGuard, Reason} from "../src/ArbGuard.sol";
+import {ArbGuard, Reason, Action, ActionKind, OracleConfig, Policy, PriceConfig} from "../src/ArbGuard.sol";
 import {Fixture} from "./Fixture.t.sol";
+import {MockAggregatorV3} from "./Mocks.sol";
 
 /// @notice Fork tests against live Arbitrum Sepolia state.
 ///
@@ -102,5 +103,109 @@ contract SepoliaForkTest is Fixture {
         vm.prank(victim);
         guardedVault.withdraw(10 ether);
         assertEq(asset.balanceOf(address(guardedVault)), 990 ether);
+    }
+
+    // ------------------------------------------- Phase 1: oracle staleness
+    /// @notice Real Sepolia ETH/USD feed (0xbF13EE58...) is STALE since
+    /// 16 Oct 2024 (updatedAt 1729103473). Paired with a fresh mock USDC
+    /// feed so the Chainlink pair is complete, a swap must revert
+    /// ORACLE_UNAVAILABLE: the stale feed is invalid, there is no TWAP
+    /// pool, and no usable source remains. This is the staleness guard
+    /// proven against live chain state (spec §1.6 / §5.2).
+    function test_Fork_StaleSepoliaEthFeed_RevertsOracleUnavailable() public {
+        address sepoliaEthFeed = 0xbF13EE58Bf62500FE87e7389faB633ff95dec029;
+        // Sanity: the feed really is stale on this fork.
+        (,,, uint256 updatedAt,) = MockAggregatorV3(sepoliaEthFeed).latestRoundData();
+        assertLt(updatedAt, block.timestamp - 7200, "feed is not stale on this fork");
+        assertLt(updatedAt, 1729103473 + 86400, "feed updatedAt moved unexpectedly");
+
+        address protocol = address(0xF00D);
+        uint256 pid = guard.registerPolicy(protocol, poolPolicy(), priceConfig());
+        // Fresh mock USDC feed ($1.00, 8 dec) completes the pair.
+        // tokenDecimals 18 for both: the mock ERC20s are both 18 dec.
+        MockAggregatorV3 usdcF = new MockAggregatorV3(1e8, block.timestamp, 8);
+        guard.setOracleConfig(
+            pid,
+            address(asset),
+            OracleConfig({
+                chainlinkFeed: sepoliaEthFeed,
+                uniswapPool: address(0),
+                feedDecimals: 8,
+                tokenDecimals: 18
+            })
+        );
+        guard.setOracleConfig(
+            pid,
+            address(token1),
+            OracleConfig({
+                chainlinkFeed: address(usdcF),
+                uniswapPool: address(0),
+                feedDecimals: 8,
+                tokenDecimals: 18
+            })
+        );
+
+        Action memory swap = Action({
+            kind: ActionKind.SWAP,
+            token: address(token1),
+            tokenIn: address(asset),
+            amountOut: 10 ether,
+            amountIn: 10 ether,
+            price: 1 ether,
+            tvl: 1000 ether,
+            healthFactorAfter: 0,
+            availableLiquidity: 0
+        });
+        vm.prank(protocol);
+        vm.expectRevert(abi.encodeWithSelector(ArbGuard.ArbGuardViolation.selector, Reason.ORACLE_UNAVAILABLE));
+        guard.check(protocol, swap);
+    }
+
+    /// @notice Fresh mock feeds on the fork: the same swap passes, proving
+    /// the ORACLE_UNAVAILABLE above is caused by the stale feed, not by
+    /// the fork environment or the policy. (The fixture pool policy
+    /// already proves this via its mock oracles; this test pins it on a
+    /// fresh policy with no TWAP pool, Chainlink-only.)
+    function test_Fork_FreshMockFeeds_PassOnFork() public {
+        address protocol = address(0xF00E);
+        uint256 pid = guard.registerPolicy(protocol, poolPolicy(), priceConfig());
+        MockAggregatorV3 wethF = new MockAggregatorV3(1e8, block.timestamp, 8);
+        MockAggregatorV3 usdcF = new MockAggregatorV3(1e8, block.timestamp, 8);
+        guard.setOracleConfig(
+            pid,
+            address(asset),
+            OracleConfig({
+                chainlinkFeed: address(wethF),
+                uniswapPool: address(0),
+                feedDecimals: 8,
+                tokenDecimals: 18
+            })
+        );
+        guard.setOracleConfig(
+            pid,
+            address(token1),
+            OracleConfig({
+                chainlinkFeed: address(usdcF),
+                uniswapPool: address(0),
+                feedDecimals: 8,
+                tokenDecimals: 18
+            })
+        );
+        Action memory swap = Action({
+            kind: ActionKind.SWAP,
+            token: address(token1),
+            tokenIn: address(asset),
+            amountOut: 10 ether,
+            amountIn: 10 ether,
+            price: 1 ether,
+            tvl: 1000 ether,
+            healthFactorAfter: 0,
+            availableLiquidity: 0
+        });
+        vm.prank(protocol);
+        guard.check(protocol, swap);
+        // And the reference price reads back 1.0 (both feeds $1.00, both 18 dec).
+        (uint256 ref,) = guard.getReferencePrice(pid, address(asset), address(token1));
+        assertEq(ref, 1 ether);
     }
 }

@@ -2,18 +2,26 @@
 pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {ArbGuard, Policy, IArbGuard} from "../src/ArbGuard.sol";
+import {ArbGuard, Policy, PriceConfig, OracleConfig, IArbGuard} from "../src/ArbGuard.sol";
 import {MockERC20} from "../src/MockERC20.sol";
 import {GuardedVault} from "../src/GuardedVault.sol";
 import {UnguardedVault} from "../src/UnguardedVault.sol";
 import {GuardedPool} from "../src/GuardedPool.sol";
 import {Attacker} from "../src/Attacker.sol";
+import {MockAggregatorV3, MockUniswapV3Pool} from "./Mocks.sol";
 
 /// @notice Shared fixture: ArbGuard + mock tokens + guarded/unguarded
 /// vaults and pools, with policies registered and victim/attacker funded.
-/// Vault policy: 100 ether/block outflow, 50% single share, 5% deviation,
-/// 1h cooldown. Pool policy: 10,000 ether/block outflow, 100% single
-/// share, 5% deviation, 1h cooldown.
+/// Vault policy: 100 ether/block outflow, 2000 ether/hour, 10000 ether/day,
+/// 50% single share, 5% deviation, 1h cooldown, 24h timelock, throttle 10%.
+/// Pool policy: 10,000 ether/block outflow, 200000 ether/hour,
+/// 1000000 ether/day, 100% single share, 5% deviation, 1h cooldown.
+/// Price config: 1800 s TWAP, 200 bps max oracle deviation, 7200 s
+/// Chainlink staleness, no sequencer feed (Sepolia has none verified).
+/// No oracle configs are registered by default: the demo pool's swaps skip
+/// the price rule unless a test registers feeds/a pool (see Oracle.t.sol).
+/// The deployer (this test contract) is the owner; the fixture registers
+/// the deployer as the first keeper of each policy.
 contract Fixture is Test {
     ArbGuard internal guard;
     MockERC20 internal asset; // mock WETH
@@ -23,6 +31,13 @@ contract Fixture is Test {
     GuardedPool internal guardedPool;
     GuardedPool internal unguardedPool;
     Attacker internal attacker;
+
+    // Mock oracles for the demo pool (both tokens at $1.00, TWAP tick 0,
+    // so the reference price is 1.0). Registered on the pool policy only;
+    // the vault does non-swap actions and never reads oracles.
+    MockAggregatorV3 internal wethFeed;
+    MockAggregatorV3 internal usdcFeed;
+    MockUniswapV3Pool internal mockPool;
 
     address internal keeper = makeAddr("keeper");
     address internal victim = makeAddr("victim");
@@ -34,11 +49,17 @@ contract Fixture is Test {
     function vaultPolicy() internal view returns (Policy memory) {
         return Policy({
             maxOutflowPerBlock: 100 ether,
+            maxOutflowPerHour: 2000 ether,
+            maxOutflowPerDay: 10000 ether,
             maxSingleShareBps: 5000,
             maxPriceDeviationBps: 500,
+            throttleBps: 1000,
             cooldownSeconds: 3600,
-            keeper: keeper,
-            enabled: true
+            policyTimelockSeconds: 86400,
+            enabled: true,
+            usdDenominated: false,
+            minHealthFactorBps: 0,
+            maxReserveDrainBps: 0
         });
     }
 
@@ -46,10 +67,25 @@ contract Fixture is Test {
         return Policy({
             maxOutflowPerBlock: 10_000 ether,
             maxSingleShareBps: 10_000,
+            maxOutflowPerHour: 200_000 ether,
+            maxOutflowPerDay: 1_000_000 ether,
             maxPriceDeviationBps: 500,
+            throttleBps: 1000,
             cooldownSeconds: 3600,
-            keeper: keeper,
-            enabled: true
+            policyTimelockSeconds: 86400,
+            enabled: true,
+            usdDenominated: false,
+            minHealthFactorBps: 0,
+            maxReserveDrainBps: 0
+        });
+    }
+
+    function priceConfig() internal pure returns (PriceConfig memory) {
+        return PriceConfig({
+            twapSeconds: 1800,
+            maxOracleDeviationBps: 200,
+            chainlinkStaleAfter: 7200,
+            sequencerFeed: address(0)
         });
     }
 
@@ -63,8 +99,36 @@ contract Fixture is Test {
         unguardedPool = new GuardedPool(asset, token1, IArbGuard(address(0)));
         attacker = new Attacker();
 
-        vaultPolicyId = guard.registerPolicy(address(guardedVault), vaultPolicy());
-        poolPolicyId = guard.registerPolicy(address(guardedPool), poolPolicy());
+        vaultPolicyId = guard.registerPolicy(address(guardedVault), vaultPolicy(), priceConfig());
+        poolPolicyId = guard.registerPolicy(address(guardedPool), poolPolicy(), priceConfig());
+        guard.addKeeper(vaultPolicyId, keeper);
+        guard.addKeeper(poolPolicyId, keeper);
+
+        // Mock oracles for the pool policy: both tokens $1.00 via Chainlink
+        // (8 decimals, fresh), TWAP tick 0 via the mock pool. Reference 1.0.
+        wethFeed = new MockAggregatorV3(1e8, block.timestamp, 8);
+        usdcFeed = new MockAggregatorV3(1e8, block.timestamp, 8);
+        mockPool = new MockUniswapV3Pool(address(asset), address(token1), 0);
+        guard.setOracleConfig(
+            poolPolicyId,
+            address(asset),
+            OracleConfig({
+                chainlinkFeed: address(wethFeed),
+                uniswapPool: address(mockPool),
+                feedDecimals: 8,
+                tokenDecimals: 18
+            })
+        );
+        guard.setOracleConfig(
+            poolPolicyId,
+            address(token1),
+            OracleConfig({
+                chainlinkFeed: address(usdcFeed),
+                uniswapPool: address(mockPool),
+                feedDecimals: 8,
+                tokenDecimals: 18
+            })
+        );
 
         asset.mint(victim, 10_000 ether);
         token1.mint(victim, 10_000 ether);
