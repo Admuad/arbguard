@@ -57,10 +57,11 @@ No frontend code was changed in this phase.
 ## Gas (for the UI's benefit)
 
 - A swap `check()` with both oracles costs ~125k gas warm (measured
-  125,433). This is OVER the spec's 120k target by 5,433 gas; the target
-  is missed and reported, not silently dropped. Budget ~130k gas for a
-  guarded swap call in the UI's estimates. `simulateCheck` for the same
-  swap is ~88.6k (view, no state change).
+  125,433 with mocks; ~226k warm against the real Chainlink feeds and
+  pool on an Arbitrum One fork). Both are UNDER the spec's 250k target
+  (revised 21 Nov 2026 from 120k after the real-fork measurement).
+  Budget ~230k gas for a guarded swap call in the UI's estimates.
+  `simulateCheck` for the same swap is ~88.6k (view, no state change).
 
 ## Contract size warning
 

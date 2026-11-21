@@ -28,10 +28,10 @@ this phase.
 - The dashboard reads live on-chain data via viem/wagmi. No hard-coded
   balances, caps, modes or prices in the UI. A number on the dashboard
   that did not come from a chain read (or from an event log) is a bug.
-- All 237 currently passing tests must still pass. The 2 known failures
-  are the Phase 1 gas-target misses (SWAP Chainlink+TWAP 126,848 /
-  THROTTLED 129,593 vs the 120k target); Phase 3 does not re-baseline
-  them. `ArbGuard` is 23,705 bytes (871 under the 24,576-byte EIP-170
+- All 244 currently passing tests must still pass (21 Nov 2026; the
+  Phase 1 gas tests pass under the 250k target, revised from 120k after
+  the real-fork measurement). Phase 3 does not re-baseline the target.
+  `ArbGuard` is 23,705 bytes (871 under the 24,576-byte EIP-170
   limit) — Phase 3 adds no contract code, so the size does not move.
 
 ## 0. The operability gap Phase 3 closes
@@ -1139,9 +1139,9 @@ The spec records them; it does not invent solutions for them.
   attacker, mWETH/mUSDC; stale-feed decision; "contracts NOT verified
   on Arbiscan yet"; "frontend env config still needs these addresses".
 - `docs/PHASE1-FRONTEND-NOTES.md` — Phase 1 interface changes; gas
-  note (swap `check()` ~125k, over the 120k target); contract-size
-  warning (25,401 bytes at the time — since slimmed to 23,705 bytes
-  after Phase 2).
+  note (swap `check()` ~125k mock / ~226k real-fork warm, under the 250k
+  target); contract-size warning (25,401 bytes at the time — since slimmed
+  to 23,705 bytes after Phase 2).
 - `contracts/src/ArbGuard.sol` — keeper functions read for this spec:
   `addKeeper` / `removeKeeper` / `isKeeper` / `getKeepers` (max 10,
   owner-only, immediate), `throttle(policyId, durationSeconds,

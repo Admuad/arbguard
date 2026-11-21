@@ -1,6 +1,9 @@
 # ArbGuard Phase 1 — Oracle-fed prices + policy hardening
 
-**Status:** spec, 19 Nov 2026. No code written against it yet.
+**Status:** spec + implemented, 21 Nov 2026. Code is written (`ArbGuard.sol`,
+`GuardedVault.sol` / `GuardedPool.sol` call sites), unit-tested, and
+fork-proven on real Arbitrum One state (see §1.8 / §5.2). Full suite
+244/244 (21 Nov 2026), CI green.
 **Scope:** `ArbGuard.sol` (+ `GuardedVault.sol` / `GuardedPool.sol` call sites,
 deploy script, frontend policy form). No public-chain deployment in this phase.
 **Design constraints carried over from v1 (non-negotiable):**
@@ -219,11 +222,20 @@ the same units.
   overflow bound for realistic prices (both feeds ≤ 1e18-scaled, decimals
   ≤ 18; intermediate fits in uint256 for any sane price).
 - **TWAP.** `tick → sqrtRatioX96` via `TickMath.getSqrtRatioAtTick`, then
-  `price1e18 = sqrtRatioX96² * 10^(decOut - decIn) * 1e18 / 2^192`,
-  inverted when the swap direction is token1→token0 (i.e. when
+  `price1e18 = sqrtRatioX96² * 1e18 / 2^192` — with NO decimal correction.
+  A Uniswap tick encodes the price in RAW token units (reserves are raw),
+  so the 1e18-scaled raw price needs no `10^(decOut - decIn)` term.
+  (Corrected 21 Nov 2026: the original §1.5 formula included a decimal
+  term that is wrong for raw prices — it gives 1.735e-3 instead of
+  1.735e9 for the WETH/USDC pool, off by 1e12, and would make every
+  Chainlink+TWAP check revert ORACLE_DISAGREEMENT. The implementation
+  uses the formula above; `ArbitrumOneFork.t.sol` pins it by asserting
+  the TWAP reference matches the Chainlink reference within 200 bps,
+  and the reverse-direction test pins the inversion.)
+  Inverted when the swap direction is token1→token0 (i.e. when
   `tokenIn == token1`, the TWAP gives token1-per-token0, so invert:
-  `ref = 1e36 / price1e18` in the matching scale — implement with
-  `FullMath.mulDiv` and assert the inversion in tests).
+  `ref = 1e36 / price1e18` — implement with `FullMath.mulDiv` and assert
+  the inversion in tests).
 - **Token decimals are stored in `OracleConfig` at registration**, not
   read live via `decimals()` on every check. Rationale: one fewer external
   call per check, and a malicious token cannot lie about its decimals
@@ -366,13 +378,29 @@ Fork tests:
   direct `observe()` call; assert the sequencer feed reads 0 (up);
   assert a 5%-pushed execution price reverts `PRICE_DEVIATION` while the
   oracles stay fresh. (Public RPC, forge-cached; no key needed.)
+  Depth additions (21 Nov 2026, all passing on the real fork):
+  - **TWAP fallback**: warp 9000 s past `chainlinkStaleAfter` so both
+    Chainlink feeds go stale; the reference must come from the TWAP
+    (source = pool) and a swap at that price must pass — the secondary
+    source saves the check on live state, not just against mocks.
+  - **Reverse direction**: resolve USDC→WETH against the live pool;
+    the reference must be the inverse of the forward reference within
+    200 bps, pinning the TWAP inversion on real state.
+  - **Heartbeat confirmation** (§6 Q6, closed): read the last 5 rounds
+    of each feed via `getRoundData`; max `updatedAt` delta must stay
+    within 2x the published heartbeat and inside `chainlinkStaleAfter`
+    (measured 21 Nov 2026: ETH/USD max 151 s, USDC/USD max 271 s).
+  - **Throttled-mode fork gas**: SWAP check in THROTTLED mode against
+    the real oracles, warm 229,219 gas — under the 250k target.
 - **TWAP manipulation-cost test** (One fork): simulate a large swap that
   pushes the pool price 5%, hold it by warping 1800 s with the price held
   (via repeated swaps or direct reserve manipulation in the test), and
   measure the attacker's loss vs the outflow cap the guard would have let
   through. Records the order-of-magnitude cost; if the cost is ever *below*
   the extractable value, the window or the cap is wrong and the test must
-  fail loudly with the numbers.
+  fail loudly with the numbers. The post-push reference read is asserted
+  strictly: it must revert `ORACLE_DISAGREEMENT` (verified 21 Nov 2026:
+  attacker loss ~$423k vs ~$42k extractable, 10.1x).
 
 ## 2. Policy hardening
 
@@ -709,7 +737,12 @@ What changes where:
   real Chainlink ETH/USD + USDC/USD and the real WETH/USDC pool;
   reference-price resolution matches a direct `observe()` call;
   sequencer feed reads 0; a 5%-pushed swap reverts `PRICE_DEVIATION`;
-  TWAP manipulation-cost test (§1.8).
+  TWAP manipulation-cost test (§1.8, strict `ORACLE_DISAGREEMENT`
+  assertion); TWAP fallback when Chainlink goes stale (warp past
+  `chainlinkStaleAfter`); reverse-direction (USDC→WETH) reference
+  pinning the TWAP inversion; Chainlink heartbeat confirmation
+  (§6 Q6, closed); throttled-mode fork gas (warm 229,219, under 250k).
+  11 tests, all passing on the real fork (21 Nov 2026).
 
 ### 5.3 Gas benchmarks
 
@@ -738,8 +771,12 @@ What changes where:
    is blunted by the policy timelock anyway). Confirm.
 6. **Chainlink heartbeat/deviation parameters for Arbitrum feeds.**
    Published values used (ETH/USD 3600 s / 0.5%, USDC/USD ~24 h / 0.25%).
-   Confirm by measuring `updatedAt` deltas across rounds in the One fork
-   test.
+   **CLOSED 21 Nov 2026:** confirmed on-chain in
+   `ArbitrumOneFork.t.sol` (`test_Fork_ChainlinkHeartbeat_Confirmed`) by
+   measuring `updatedAt` deltas across the last 5 rounds via
+   `getRoundData`: ETH/USD max delta 151 s, USDC/USD max delta 271 s —
+   both far inside their published heartbeat and inside
+   `chainlinkStaleAfter` (7200 s). The staleAfter bound is sound.
 7. **Proposal execution window.** Spec: 7 days. Confirm.
 8. **TWAP window default.** Spec: 1800 s. Alternative: 3600 s (Aave-style).
    Confirm; low-liquidity pairs should use longer windows in any case.

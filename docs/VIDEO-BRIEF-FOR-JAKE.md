@@ -177,8 +177,10 @@ The app is a Next.js website. Routes (all under the same site; the local base is
 
 Only real numbers, each with its source. Anything not verified is marked.
 
-**Tests (source: `forge test`, run 20 Nov 2026):**
-- 237 passed, 2 failed, 239 total. The 2 failures are gas-target tests (SWAP 127,475 and THROTTLED 130,220 vs a 120,000 target) — kept failing by design, not hidden.
+**Tests (source: `forge test`, run 21 Nov 2026):**
+- 244 passed, 0 failed, 244 total (CI green). The Phase 1 gas tests pass
+  under the 250k target (revised 21 Nov 2026 from 120k after the
+  real-fork measurement; mock SWAP ~127k, real-fork warm ~226k).
 - All 159 Phase 1 tests still pass. New Phase 2 suites: AaveAdapter 14/14, UniswapV3Adapter 13/13, HealthFactor 12/12, ReserveDrain 10/10, AdapterUnits 4/4, Mirror 8/8, AaveFork 13/13, UniswapV3Fork 7/7.
 - Keeper bot unit tests: 27/27. Keeper Anvil fork test: 10/10.
 

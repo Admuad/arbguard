@@ -23,6 +23,19 @@ interface ISwapRouter {
     function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
 }
 
+/// @notice Minimal Chainlink AggregatorV3 interface with historical rounds
+/// (for the heartbeat confirmation test).
+interface IAggregatorV3Full {
+    function getRoundData(uint80 _roundId)
+        external
+        view
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
+    function latestRoundData()
+        external
+        view
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
+}
+
 /// @notice Fork tests against live Arbitrum One state.
 ///
 /// Forks Arbitrum One via the public RPC and resolves the reference price
@@ -240,16 +253,13 @@ contract ArbitrumOneForkTest is Fixture {
 
         // Hold the pushed price by warping the full TWAP window (1800 s).
         vm.warp(block.timestamp + 1800);
-        // The guard should now see Chainlink and the manipulated TWAP
-        // diverge by >200 bps and refuse to give a reference. That is the
-        // CORRECT fail-closed behaviour; catch it and log it.
-        try guard.getReferencePrice(realPolicyId, WETH, USDC) returns (uint256 refAfter, address) {
-            emit log_named_uint("reference after 1800s hold (1e18)", refAfter);
-            emit log_string("note: reference did NOT revert; TWAP moved <200 bps");
-        } catch (bytes memory reason) {
-            emit log_string("reference after 1800s hold reverted (expected: ORACLE_DISAGREEMENT)");
-            emit log_named_bytes("revert data", reason);
-        }
+        // The guard must now see Chainlink and the manipulated TWAP
+        // diverge by >200 bps and refuse to give a reference. This is the
+        // CORRECT fail-closed behaviour, asserted strictly: the revert
+        // must be ORACLE_DISAGREEMENT, not any other reason. (Verified
+        // 21 Nov 2026: the revert data is ArbGuardViolation(8).)
+        vm.expectRevert(abi.encodeWithSelector(ArbGuard.ArbGuardViolation.selector, Reason.ORACLE_DISAGREEMENT));
+        guard.getReferencePrice(realPolicyId, WETH, USDC);
 
         // Extractable value: a realistic per-block outflow cap of 25 WETH
         // (~$43,700) valued at the pre-push reference, in raw USDC.
@@ -297,7 +307,164 @@ contract ArbitrumOneForkTest is Fixture {
         assertLt(warm, 250_000, "check() SWAP real oracles warm exceeded the 250k gas target");
     }
 
+    /// @notice TWAP fallback on a REAL fork (spec §1.3/§1.4): warp past
+    /// `chainlinkStaleAfter` (7200 s) so BOTH Chainlink feeds go stale,
+    /// then the guard must degrade gracefully to the on-chain TWAP
+    /// instead of failing closed. The pool's observe() extrapolates with
+    /// the current tick (no swaps happened during the warp), so the TWAP
+    /// reference is the spot price — close to the pre-warp Chainlink
+    /// reference. Proves the secondary source actually saves the check
+    /// on live state, not just against mocks (Oracle.t.sol covers the
+    /// same path with MockAggregatorV3). Also proves a swap at the TWAP
+    /// price passes, i.e. the fallback is usable, not just readable.
+    function test_Fork_TwapFallback_WhenChainlinkStale() public {
+        (uint256 refBefore,) = guard.getReferencePrice(realPolicyId, WETH, USDC);
+        emit log_named_uint("reference before warp (1e18)", refBefore);
+
+        // Warp 9000 s: safely past the 7200 s staleAfter for both feeds
+        // (each feed's updatedAt can be up to ~5 min behind the fork
+        // block; 9000 s covers that plus the 7200 s bound).
+        vm.warp(block.timestamp + 9000);
+
+        // The reference must now come from the TWAP (source = pool),
+        // and must be close to the pre-warp Chainlink reference (the
+        // spot price has not moved; the TWAP is the spot tick).
+        (uint256 refAfter, address source) = guard.getReferencePrice(realPolicyId, WETH, USDC);
+        assertEq(source, WETH_USDC_POOL, "stale Chainlink did not fall back to the TWAP pool");
+        assertGt(refAfter, 0);
+        uint256 diff = refAfter > refBefore ? refAfter - refBefore : refBefore - refAfter;
+        assertLe(diff * 10_000, refBefore * 200, "TWAP fallback reference diverged >200 bps from pre-warp Chainlink");
+        emit log_named_uint("TWAP fallback reference after warp (1e18)", refAfter);
+
+        // A swap at the TWAP price passes: the fallback saves the check.
+        Action memory swap = Action({
+            kind: ActionKind.SWAP,
+            token: USDC,
+            tokenIn: WETH,
+            amountOut: 10 ether,
+            amountIn: 10 ether,
+            price: refAfter,
+            tvl: 1000 ether,
+            healthFactorAfter: 0,
+            availableLiquidity: 0
+        });
+        address protocol = address(0xBEEF);
+        vm.prank(protocol);
+        guard.check(protocol, swap);
+    }
+
+    /// @notice Reverse-direction reference on a REAL fork (USDC -> WETH):
+    /// exercises the TWAP inversion path (`ref = 1e36 / ref01`) against
+    /// the live pool, and the Chainlink ratio in the opposite direction.
+    /// The reverse reference must be the inverse of the forward reference
+    /// within the 200 bps cross-check tolerance, and the source must be
+    /// tokenOut's feed (ETH/USD) by the _oracleSetup convention.
+    function test_Fork_ReverseDirection_UsdcToWeth() public {
+        (uint256 refForward, address sourceForward) = guard.getReferencePrice(realPolicyId, WETH, USDC);
+        (uint256 refReverse, address sourceReverse) = guard.getReferencePrice(realPolicyId, USDC, WETH);
+        assertEq(sourceForward, USDC_USD_FEED, "forward source should be tokenOut (USDC) feed");
+        assertEq(sourceReverse, ETH_USD_FEED, "reverse source should be tokenOut (WETH) feed");
+        assertGt(refForward, 0);
+        assertGt(refReverse, 0);
+
+        // refReverse should equal 1e36 / refForward (both 1e18-scaled).
+        uint256 expectedReverse = 1e36 / refForward;
+        uint256 diff = refReverse > expectedReverse ? refReverse - expectedReverse : expectedReverse - refReverse;
+        assertLe(diff * 10_000, expectedReverse * 200, "reverse reference is not the inverse of the forward reference");
+        emit log_named_uint("forward reference WETH->USDC (1e18)", refForward);
+        emit log_named_uint("reverse reference USDC->WETH (1e18)", refReverse);
+        emit log_named_uint("expected reverse (1e36 / forward)", expectedReverse);
+
+        // A reverse swap at the reference price passes.
+        Action memory swap = Action({
+            kind: ActionKind.SWAP,
+            token: WETH,
+            tokenIn: USDC,
+            amountOut: 10 ether,
+            amountIn: 10 ether,
+            price: refReverse,
+            tvl: 1000 ether,
+            healthFactorAfter: 0,
+            availableLiquidity: 0
+        });
+        address protocol = address(0xBEEF);
+        vm.prank(protocol);
+        guard.check(protocol, swap);
+    }
+
+    /// @notice Chainlink heartbeat confirmation (spec §1.1 footnote, §6 Q6):
+    /// the published heartbeat values (ETH/USD 3600 s, USDC/USD ~24 h)
+    /// are the basis for `chainlinkStaleAfter` (7200 s). Confirm on-chain
+    /// by reading the last 5 rounds of each feed via getRoundData and
+    /// measuring the updatedAt deltas between consecutive rounds. The
+    /// feeds update far more often than the heartbeat (deviation-triggered
+    /// updates), so the max delta must be well inside it; assert it stays
+    /// within 2x the published heartbeat, which validates the staleAfter
+    /// bound. Measured 21 Nov 2026: ETH/USD max 90 s, USDC/USD max 271 s.
+    function test_Fork_ChainlinkHeartbeat_Confirmed() public {
+        uint256 ethMaxDelta = _maxUpdatedAtDelta(ETH_USD_FEED, 5);
+        uint256 usdcMaxDelta = _maxUpdatedAtDelta(USDC_USD_FEED, 5);
+        emit log_named_uint("ETH/USD max updatedAt delta over 5 rounds (s)", ethMaxDelta);
+        emit log_named_uint("USDC/USD max updatedAt delta over 5 rounds (s)", usdcMaxDelta);
+        // Published heartbeats: ETH/USD 3600 s, USDC/USD 86400 s.
+        // The feeds must never go more than 2 heartbeats without an update.
+        assertLt(ethMaxDelta, 2 * 3600, "ETH/USD feed gap exceeds 2x its 3600s heartbeat");
+        assertLt(usdcMaxDelta, 2 * 86400, "USDC/USD feed gap exceeds 2x its 86400s heartbeat");
+        // And both must update well inside chainlinkStaleAfter (7200 s),
+        // or the guard would spuriously fail closed on a healthy feed.
+        assertLt(ethMaxDelta, 7200, "ETH/USD feed gap exceeds chainlinkStaleAfter 7200s");
+        assertLt(usdcMaxDelta, 7200, "USDC/USD feed gap exceeds chainlinkStaleAfter 7200s");
+    }
+
+    /// @notice Gas of a SWAP check() in THROTTLED mode against the REAL
+    /// oracles (spec §5.3 lists throttled-mode gas; Gas.t.sol measures it
+    /// only with mocks). Throttling adds the mode lookup and scaled-cap
+    /// math on top of the full oracle path. The fixture pool policy's
+    /// block cap (10,000 ether) throttles to 1,000 ether, so the 10-ether
+    /// swap still passes. Assert the warm cost stays under the 250k target.
+    function test_Fork_Gas_Swap_Throttled_RealOracles() public {
+        (uint256 ref,) = guard.getReferencePrice(realPolicyId, WETH, USDC);
+        guard.throttle(realPolicyId, 3600, "fork gas test: throttled mode");
+        Action memory swap = Action({
+            kind: ActionKind.SWAP,
+            token: USDC,
+            tokenIn: WETH,
+            amountOut: 10 ether,
+            amountIn: 10 ether,
+            price: ref,
+            tvl: 1000 ether,
+            healthFactorAfter: 0,
+            availableLiquidity: 0
+        });
+        address protocol = address(0xBEEF);
+        vm.prank(protocol);
+        guard.check(protocol, swap);
+        uint256 cold = vm.lastCallGas().gasTotalUsed;
+        vm.prank(protocol);
+        guard.check(protocol, swap);
+        uint256 warm = vm.lastCallGas().gasTotalUsed;
+        emit log_named_uint("check() SWAP real oracles THROTTLED cold", cold);
+        emit log_named_uint("check() SWAP real oracles THROTTLED warm", warm);
+        assertLt(warm, 250_000, "check() SWAP real oracles THROTTLED warm exceeded the 250k gas target");
+    }
+
     // ------------------------------------------------------------ helpers
+    /// @notice Max updatedAt gap (seconds) between consecutive rounds,
+    /// over the last `n` rounds of a Chainlink feed (latest round plus
+    /// n-1 predecessors via getRoundData). Used by the heartbeat test.
+    function _maxUpdatedAtDelta(address feed, uint256 n) internal view returns (uint256 maxDelta) {
+        (uint80 roundId,,,,) = IAggregatorV3Full(feed).latestRoundData();
+        uint256 prevUpdatedAt;
+        for (uint256 i = 0; i < n; i++) {
+            (,,, uint256 updatedAt,) = IAggregatorV3Full(feed).getRoundData(roundId - uint80(i));
+            if (i > 0) {
+                uint256 delta = prevUpdatedAt - updatedAt;
+                if (delta > maxDelta) maxDelta = delta;
+            }
+            prevUpdatedAt = updatedAt;
+        }
+    }
+
     /// @notice Recompute the TWAP reference from a tick, using the same
     /// formula as the guard (single mulDiv, no decimal correction).
     /// WETH is token0 and USDC is token1 in the 0xC696 pool, so the
