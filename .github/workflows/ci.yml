@@ -26,6 +26,8 @@ jobs:
         run: forge build
       - name: Test contracts
         working-directory: contracts
+        env:
+          ARBITRUM_ONE_RPC_URL: ${{ secrets.ARBITRUM_ONE_RPC_URL }}
         run: forge test
 
   stylus:
